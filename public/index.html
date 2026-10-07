@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f7fb">
+  <meta name="description" content="Organiza tus materias, horarios, evaluaciones y metas académicas en un solo lugar.">
+  <title>StudyQ — tu espacio académico</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+          colors: { ink: '#182230', muted: '#7c8798', brand: '#625bf6' },
+          boxShadow: { soft: '0 12px 36px rgba(29, 41, 65, .07)' }
+        }
+      }
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="bg-[#f6f7fb] text-ink antialiased">
+  <div class="app-shell min-h-screen">
+    <aside class="sidebar">
+      <a class="brand-lockup" href="#" aria-label="StudyQ inicio">
+        <span class="brand-mark">S</span><span>study<span class="brand-q">Q</span></span>
+      </a>
+      <div class="sidebar-label">ESPACIO DE ESTUDIO</div>
+      <nav class="side-nav" aria-label="Navegación principal">
+        <a href="#dashboard" class="nav-link active"><span class="nav-icon">⌂</span>Inicio</a>
+        <a href="#subjects" class="nav-link"><span class="nav-icon">▤</span>Mis materias</a>
+        <a href="#schedule" class="nav-link"><span class="nav-icon">▦</span>Horario semanal</a>
+        <a href="#tasks" class="nav-link"><span class="nav-icon">✓</span>Evaluaciones</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="sidebar-tip">
+          <span class="tip-spark">✳</span>
+          <p>Un paso a la vez.<br><strong>Vas muy bien.</strong></p>
+          <span class="tip-orbit"></span>
+        </div>
+        <div class="profile-row"><div class="avatar">ES</div><div><strong>Mi espacio</strong><small>Estudiante</small></div><span class="profile-more">···</span></div>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="mobile-brand"><span class="brand-mark">S</span> studyQ</div>
+        <div class="breadcrumb">Mi espacio <span>/</span> <strong>Resumen</strong></div>
+        <div class="top-actions">
+          <span id="today-label" class="today-label"></span>
+          <button id="theme-toggle" class="icon-button" type="button" aria-label="Cambiar modo claro u oscuro" title="Cambiar tema">◐</button>
+          <button id="open-welcome" class="icon-button notification-button" type="button" aria-label="Ver recordatorios" title="Recordatorios">♧<i></i></button>
+          <button id="logout-button" class="icon-button" type="button" aria-label="Cerrar sesión" title="Cerrar sesión">↪</button>
+          <button id="add-subject-top" class="button button-primary top-add" type="button"><span>＋</span> Nueva materia</button>
+        </div>
+      </header>
+
+      <div class="content-wrap">
+        <section id="dashboard" class="welcome-heading">
+          <div>
+            <div class="eyebrow"><span class="eyebrow-dot"></span> TU ESPACIO ACADÉMICO</div>
+            <h1>¡Hola! <span class="wave">✳</span></h1>
+            <p>Este es tu espacio para aprender, organizarte y llegar más lejos.</p>
+          </div>
+          <div class="date-pill"><span class="date-icon">▦</span><span id="full-date"></span></div>
+        </section>
+
+        <section class="stats-grid" aria-label="Resumen académico">
+          <article class="stat-card"><div class="stat-top"><span>Materias activas</span><span class="stat-icon violet">▤</span></div><div class="stat-number" id="stat-subjects">0</div><div class="stat-caption"><span class="stat-dot violet-dot"></span> Este período</div></article>
+          <article class="stat-card"><div class="stat-top"><span>Por completar</span><span class="stat-icon amber">◷</span></div><div class="stat-number" id="stat-pending">0</div><div class="stat-caption"><span class="stat-dot amber-dot"></span> Evaluaciones pendientes</div></article>
+          <article class="stat-card"><div class="stat-top"><span>Nota promedio</span><span class="stat-icon green">↗</span></div><div class="stat-number"><span id="stat-average">—</span><small class="stat-out-of">/ 20</small></div><div class="stat-caption"><span class="stat-dot green-dot"></span> De tus materias evaluadas</div></article>
+          <article class="stat-card"><div class="stat-top"><span>Esta semana</span><span class="stat-icon blue">▦</span></div><div class="stat-number" id="stat-sessions">0</div><div class="stat-caption"><span class="stat-dot blue-dot"></span> Bloques programados</div></article>
+        </section>
+
+        <section class="section-block" id="subjects">
+          <div class="section-heading">
+            <div><div class="eyebrow">TU PROGRESO</div><h2>Mis materias <span id="subject-count" class="count-pill">0</span></h2></div>
+            <div class="section-actions"><select id="subject-filter" class="select-control" aria-label="Filtrar tareas por materia"><option value="all">Todas las materias</option></select><button id="add-subject" class="button button-light" type="button"><span>＋</span> Añadir materia</button></div>
+          </div>
+          <div id="subject-grid" class="subject-grid"></div>
+          <div id="empty-subjects" class="empty-state hidden"><div class="empty-illustration">✳</div><h3>Tu semestre empieza aquí</h3><p>Añade tu primera materia para organizar horarios y evaluaciones.</p><button class="button button-primary" id="empty-add-subject" type="button">＋ Añadir primera materia</button></div>
+        </section>
+
+        <div class="lower-grid">
+          <section class="panel-card schedule-panel" id="schedule">
+            <div class="panel-heading"><div><div class="eyebrow">ORGANIZA TU SEMANA</div><h2>Horario semanal</h2></div><span class="panel-heading-icon">▦</span></div>
+            <div id="weekly-schedule" class="weekly-schedule"></div>
+            <div class="schedule-legend"><span><i class="legend-dot class-color"></i>Clases</span><span><i class="legend-dot practice-color"></i>Prácticas</span><span><i class="legend-dot study-color"></i>Estudio</span></div>
+          </section>
+          <section class="panel-card tasks-panel" id="tasks">
+            <div class="panel-heading"><div><div class="eyebrow">NO PIERDAS EL RITMO</div><h2>Próximas evaluaciones</h2></div><a href="#tasks" id="see-all-tasks" class="text-link">Ver todas <span>→</span></a></div>
+            <div class="task-filters" role="group" aria-label="Filtrar evaluaciones">
+              <button class="filter-chip active" type="button" data-status-filter="all">Todas</button><button class="filter-chip" type="button" data-status-filter="pending">Pendientes</button><button class="filter-chip" type="button" data-status-filter="completed">Completadas</button>
+            </div>
+            <div id="task-list" class="task-list"></div>
+          </section>
+        </div>
+        <footer class="page-footer"><span>Hecho para acompañarte en cada meta <span class="footer-star">✳</span></span><span>STUDYQ · TU SEMESTRE, A TU RITMO</span></footer>
+      </div>
+    </main>
+  </div>
+
+  <div id="subject-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="subject-modal-title">
+    <div class="modal-card"><div class="modal-heading"><div><div class="eyebrow">PERSONALIZA TU SEMESTRE</div><h2 id="subject-modal-title">Nueva materia</h2></div><button class="icon-button close-modal" type="button" aria-label="Cerrar">×</button></div>
+      <form id="subject-form"><label class="field-label" for="subject-name">Nombre de la materia</label><input id="subject-name" class="text-input" name="name" maxlength="100" placeholder="Ej. Cálculo diferencial" required>
+        <label class="field-label" for="subject-color">Color identificador</label><div class="color-input-row"><input id="subject-color" type="color" name="color" value="#635BFF"><span>Elige un color para reconocerla fácilmente.</span></div>
+        <div class="modal-actions"><button class="button button-light close-modal" type="button">Cancelar</button><button class="button button-primary" type="submit">Guardar materia</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="detail-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <div class="modal-card detail-card"><div class="modal-heading"><div><div class="eyebrow">DETALLES DE LA MATERIA</div><h2 id="detail-title">Materia</h2></div><button class="icon-button close-modal" type="button" aria-label="Cerrar">×</button></div>
+      <div id="detail-body"></div>
+    </div>
+  </div>
+
+  <div id="welcome-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+    <div class="modal-card welcome-modal"><div class="welcome-modal-art"><span>✳</span><i></i><b></b></div><button class="icon-button welcome-close" type="button" aria-label="Cerrar">×</button><div class="eyebrow">UN NUEVO DÍA, NUEVAS POSIBILIDADES</div><h2 id="welcome-title">¡Qué bueno verte!</h2><p class="welcome-subtitle">Aquí tienes lo más importante para hoy y los próximos días.</p><div id="welcome-content"></div><button id="welcome-done" class="button button-primary welcome-done" type="button">¡A por ello! <span>→</span></button></div>
+  </div>
+  <div id="auth-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+    <div class="modal-card auth-modal"><div class="auth-mark">S</div><div class="eyebrow">TU ESPACIO, SOLO PARA TI</div><h2 id="auth-title">Bienvenido de vuelta</h2><p>Ingresa tu clave privada para continuar.</p><form id="auth-form"><label class="field-label" for="auth-password">Clave de acceso</label><input id="auth-password" class="text-input" name="password" type="password" autocomplete="current-password" required><button class="button button-primary" type="submit">Entrar <span>→</span></button></form></div>
+  </div>
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

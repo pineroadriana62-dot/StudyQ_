@@ -1,0 +1,19 @@
+{
+  "name": "studyq-academico",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Panel interactivo de gestión universitaria y académica",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "node -e \"console.log('Aplicación lista: frontend estático, sin paso de compilación.')\""
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}
