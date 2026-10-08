@@ -42,7 +42,7 @@
           <p>Un paso a la vez.<br><strong>Vas muy bien.</strong></p>
           <span class="tip-orbit"></span>
         </div>
-        <div class="profile-row"><div class="avatar">ES</div><div><strong>Mi espacio</strong><small>Estudiante</small></div><span class="profile-more">···</span></div>
+        <div class="profile-row"><div class="avatar">ES</div><div><strong id="profile-name">Mi espacio</strong><small>Estudiante</small></div><span class="profile-more">···</span></div>
       </div>
     </aside>
 
@@ -123,7 +123,7 @@
     <div class="modal-card welcome-modal"><div class="welcome-modal-art"><span>✳</span><i></i><b></b></div><button class="icon-button welcome-close" type="button" aria-label="Cerrar">×</button><div class="eyebrow">UN NUEVO DÍA, NUEVAS POSIBILIDADES</div><h2 id="welcome-title">¡Qué bueno verte!</h2><p class="welcome-subtitle">Aquí tienes lo más importante para hoy y los próximos días.</p><div id="welcome-content"></div><button id="welcome-done" class="button button-primary welcome-done" type="button">¡A por ello! <span>→</span></button></div>
   </div>
   <div id="auth-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-    <div class="modal-card auth-modal"><div class="auth-mark">S</div><div class="eyebrow">TU ESPACIO, SOLO PARA TI</div><h2 id="auth-title">Bienvenido de vuelta</h2><p>Ingresa tu clave privada para continuar.</p><form id="auth-form"><label class="field-label" for="auth-password">Clave de acceso</label><input id="auth-password" class="text-input" name="password" type="password" autocomplete="current-password" required><button class="button button-primary" type="submit">Entrar <span>→</span></button></form></div>
+    <div class="modal-card auth-modal"><div class="auth-mark">S</div><div class="eyebrow">TU ESPACIO, SOLO PARA TI</div><h2 id="auth-title">Bienvenido de vuelta</h2><p id="auth-description">Ingresa tus datos para continuar.</p><form id="auth-form"><label class="field-label" for="auth-email">Correo electrónico</label><input id="auth-email" class="text-input" name="email" type="email" maxlength="254" autocomplete="email" required><label class="field-label" for="auth-password">Contraseña</label><input id="auth-password" class="text-input" name="password" type="password" minlength="8" maxlength="128" autocomplete="current-password" required><button id="auth-submit" class="button button-primary" type="submit">Entrar <span>→</span></button></form><button id="auth-mode-toggle" class="text-link auth-toggle" type="button">¿Eres nuevo? Crear una cuenta</button></div>
   </div>
   <div id="toast-region" class="toast-region" aria-live="polite"></div>
   <script src="/app.js" defer></script>

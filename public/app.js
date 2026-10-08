@@ -6,6 +6,8 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
 const state = {
   subjects: [],
+  user: null,
+  authMode: 'login',
   taskStatus: 'all',
   subjectFilter: 'all',
   showAllTasks: false,
@@ -176,7 +178,7 @@ function renderSchedule() {
     const events = allSchedules.filter((schedule) => Number(schedule.day_of_week) === day)
       .sort((a, b) => a.start_time.localeCompare(b.start_time));
     return `<div class="day-column"><div class="day-name${day === today ? ' today' : ''}">${dayShort[day]}<span class="day-date">${date.getDate()}</span></div>
-      <div class="day-events">${events.length ? events.map((event) => `<div class="schedule-event ${event.type}" title="${escapeHtml(typeNames[event.type])}: ${escapeHtml(event.subject_name)}"><strong>${escapeHtml(event.subject_name)}</strong><span>${escapeHtml(event.start_time)} · ${escapeHtml(event.end_time)}</span></div>`).join('') : '<div class="schedule-empty">—</div>'}</div></div>`;
+      <div class="day-events">${events.length ? events.map((event) => `<div class="schedule-event ${event.type}" title="${escapeHtml(typeNames[event.type])}: ${escapeHtml(event.subject_name)}"><strong>${escapeHtml(event.subject_name)}</strong><span>${escapeHtml(event.start_time)} · ${escapeHtml(event.end_time)}</span>${event.location ? `<small>${escapeHtml(event.location)}</small>` : ''}</div>`).join('') : '<div class="schedule-empty">—</div>'}</div></div>`;
   }).join('');
 }
 
@@ -196,10 +198,10 @@ function renderTasks() {
     const completed = evaluation.status === 'completed';
     const countdown = countdownLabel(evaluation.due_date);
     const urgent = !completed && daysUntil(evaluation.due_date) !== null && daysUntil(evaluation.due_date) <= 2;
-    return `<div class="task-row"><button class="task-check${completed ? ' checked' : ''}" type="button" data-action="toggle-task" data-id="${evaluation.id}" aria-label="${completed ? 'Marcar pendiente' : 'Marcar completada'}">${completed ? '✓' : ''}</button>
+    return `<div class="task-row"><button class="task-check${completed ? ' checked' : ''}" type="button" data-action="toggle-task" data-id="${evaluation.id}" aria-label="${completed ? 'Marcar pendiente' : evaluation.grade === null ? 'Registra una nota para completar' : 'Marcar completada'}"${evaluation.grade === null ? ' disabled' : ''}>${completed ? '✓' : ''}</button>
       <div class="task-info"><strong title="${escapeHtml(evaluation.title)}">${escapeHtml(evaluation.title)}</strong><small><span style="color:${escapeHtml(evaluation.subject_color)}">●</span> ${escapeHtml(evaluation.subject_name)} · ${Number(evaluation.percentage)}%</small></div>
       <div class="task-date"><strong class="${urgent ? 'urgent' : ''}">${formatDueDate(evaluation.due_date)}</strong><small class="${urgent ? 'urgent' : ''}">${completed ? 'Completada' : countdown}</small></div>
-      <div class="task-actions"><button class="task-edit" type="button" data-action="edit-task" data-id="${evaluation.id}" aria-label="Editar evaluación">✎</button><button class="task-delete" type="button" data-action="delete-task" data-id="${evaluation.id}" aria-label="Eliminar evaluación">×</button></div></div>`;
+      <div class="task-actions">${evaluation.grade === null ? `<button class="task-grade" type="button" data-action="record-grade" data-id="${evaluation.id}">Registrar nota</button>` : ''}<button class="task-edit" type="button" data-action="edit-task" data-id="${evaluation.id}" aria-label="Editar evaluación">✎</button><button class="task-delete" type="button" data-action="delete-task" data-id="${evaluation.id}" aria-label="Eliminar evaluación">×</button></div></div>`;
   }).join('') : '<div class="task-empty">No hay evaluaciones en esta vista. ¡Disfruta el respiro!</div>';
   $('#see-all-tasks').textContent = state.showAllTasks ? 'Ver menos ↑' : 'Ver todas →';
 }
@@ -231,6 +233,21 @@ function updateDates() {
 
 async function refresh({ welcome = false } = {}) {
   try {
+    const session = await api('/api/auth/session');
+    if (!session.authenticated) {
+      closeModals();
+      state.subjects = [];
+      state.user = null;
+      $('#profile-name').textContent = 'Mi espacio';
+      renderStats();
+      renderSubjects();
+      renderSchedule();
+      renderTasks();
+      $('#auth-modal').classList.remove('hidden');
+      return;
+    }
+    state.user = session.user;
+    $('#profile-name').textContent = session.user.email;
     state.subjects = await api('/api/subjects');
     subjectFilterOptions();
     renderStats();
@@ -246,7 +263,17 @@ async function refresh({ welcome = false } = {}) {
       }
     }
   } catch (error) {
-    if (error.authRequired) $('#auth-modal').classList.remove('hidden');
+    if (error.authRequired) {
+      closeModals();
+      state.subjects = [];
+      state.user = null;
+      $('#profile-name').textContent = 'Mi espacio';
+      renderStats();
+      renderSubjects();
+      renderSchedule();
+      renderTasks();
+      $('#auth-modal').classList.remove('hidden');
+    }
     else toast(error.message, true);
   }
 }
@@ -274,8 +301,8 @@ function openDetails(subjectId) {
 }
 
 function renderDetailBody(subject) {
-  const schedules = subject.schedules.map((item) => `<div class="detail-item"><span class="schedule-event ${item.type}" style="width:6px;min-height:25px;padding:0"></span><div class="detail-item-main"><strong>${escapeHtml(typeNames[item.type])} · ${escapeHtml(dayNames[Number(item.day_of_week)])}</strong><small>${escapeHtml(item.start_time)}–${escapeHtml(item.end_time)}</small></div><button type="button" data-action="delete-schedule" data-id="${item.id}" aria-label="Eliminar bloque">×</button></div>`).join('');
-  const evaluations = subject.evaluations.map((item) => `<div class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.title)}</strong><small>${Number(item.percentage)}% · ${item.due_date ? formatDueDate(item.due_date) : 'Sin fecha'} · ${item.status === 'completed' ? 'Completada' : `Pendiente · ${countdownLabel(item.due_date)}`}</small></div><span class="detail-grade">${item.grade === null ? '—' : `${Number(item.grade)}/20`}</span><button type="button" data-action="edit-task" data-id="${item.id}" aria-label="Editar evaluación">✎</button><button type="button" data-action="delete-task" data-id="${item.id}" aria-label="Eliminar evaluación">×</button></div>`).join('');
+  const schedules = subject.schedules.map((item) => `<div class="detail-item"><span class="schedule-event ${item.type}" style="width:6px;min-height:25px;padding:0"></span><div class="detail-item-main"><strong>${escapeHtml(typeNames[item.type])} · ${escapeHtml(dayNames[Number(item.day_of_week)])}</strong><small>${escapeHtml(item.start_time)}–${escapeHtml(item.end_time)}${item.location ? ` · ${escapeHtml(item.location)}` : ''}</small></div><button type="button" data-action="delete-schedule" data-id="${item.id}" aria-label="Eliminar bloque">×</button></div>`).join('');
+  const evaluations = subject.evaluations.map((item) => `<div class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.title)}</strong><small>${Number(item.percentage)}% · ${item.due_date ? formatDueDate(item.due_date) : 'Sin fecha'} · ${item.grade === null ? 'Pendiente de calificación' : item.status === 'completed' ? 'Completada' : 'Calificada'}</small></div><span class="detail-grade">${item.grade === null ? '—' : `${Number(item.grade)}/20`}</span>${item.grade === null ? `<button class="button button-light grade-action" type="button" data-action="record-grade" data-id="${item.id}">Registrar nota</button>` : ''}<button type="button" data-action="edit-task" data-id="${item.id}" aria-label="Editar evaluación">✎</button><button type="button" data-action="delete-task" data-id="${item.id}" aria-label="Eliminar evaluación">×</button></div>`).join('');
   $('#detail-body').innerHTML = `<section class="detail-section"><div class="detail-section-title"><h3>Clases, prácticas y estudio</h3><button type="button" data-action="add-schedule" data-id="${subject.id}">＋ Añadir bloque</button></div><div class="detail-list">${schedules || '<div class="detail-empty">Aún no hay bloques de horario.</div>'}</div></section>
     <section class="detail-section"><div class="detail-section-title"><h3>Evaluaciones y ponderación</h3><button type="button" data-action="add-task" data-id="${subject.id}">＋ Añadir evaluación</button></div><div class="detail-list">${evaluations || '<div class="detail-empty">Aún no hay evaluaciones. Agrega una para calcular tu proyección.</div>'}</div></section>
     <div class="modal-actions"><button class="button button-light" type="button" data-action="edit-subject" data-id="${subject.id}">Editar materia</button><button class="button button-light" type="button" data-action="delete-subject" data-id="${subject.id}">Eliminar materia</button></div>`;
@@ -286,7 +313,7 @@ function addScheduleForm(subjectId) {
   if ($('.inline-form', section)) return;
   const form = document.createElement('form');
   form.className = 'inline-form';
-  form.innerHTML = `<div class="form-grid"><div class="wide"><label class="field-label">Tipo de bloque</label><select class="text-input" name="type" required><option value="class">Clase</option><option value="practice">Práctica</option><option value="study">Estudio</option></select></div><div><label class="field-label">Día</label><select class="text-input" name="day_of_week" required>${dayNames.map((day, index) => `<option value="${index}">${day}</option>`).join('')}</select></div><div><label class="field-label">Desde</label><input class="text-input" type="time" name="start_time" required></div><div><label class="field-label">Hasta</label><input class="text-input" type="time" name="end_time" required></div></div><button class="button button-primary" type="submit">Guardar horario</button>`;
+  form.innerHTML = `<div class="form-grid"><div class="wide"><label class="field-label">Tipo de bloque</label><select class="text-input" name="type" required><option value="class">Clase</option><option value="practice">Práctica</option><option value="study">Estudio</option></select></div><div><label class="field-label">Día</label><select class="text-input" name="day_of_week" required>${dayNames.map((day, index) => `<option value="${index}">${day}</option>`).join('')}</select></div><div><label class="field-label">Desde</label><input class="text-input" type="time" name="start_time" required></div><div><label class="field-label">Hasta</label><input class="text-input" type="time" name="end_time" required></div><div class="wide"><label class="field-label">Aula o profesor (opcional)</label><input class="text-input" name="location" maxlength="120" placeholder="Ej. Aula 204 · Prof. García"></div></div><button class="button button-primary" type="submit">Guardar horario</button>`;
   section.append(form);
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -302,20 +329,23 @@ function addScheduleForm(subjectId) {
   });
 }
 
-function addEvaluationForm(subjectId, evaluation = null) {
+function addEvaluationForm(subjectId, evaluation = null, recordGrade = false) {
   const section = $('#detail-body .detail-section:last-of-type');
   if ($('.inline-form', section)) $('.inline-form', section).remove();
   const form = document.createElement('form');
   form.className = 'inline-form';
   const dueDate = evaluation?.due_date ? String(evaluation.due_date).slice(0, 10) : '';
-  form.innerHTML = `<div class="form-grid"><div class="wide"><label class="field-label">Nombre de la evaluación</label><input class="text-input" name="title" maxlength="160" required value="${escapeHtml(evaluation?.title || '')}" placeholder="Ej. Parcial 1"></div><div><label class="field-label">Ponderación (%)</label><input class="text-input" name="percentage" type="number" min="0.01" max="100" step="0.01" required value="${evaluation ? Number(evaluation.percentage) : ''}" placeholder="25"></div><div><label class="field-label">Nota (1–20)</label><input class="text-input" name="grade" type="number" min="1" max="20" step="0.01" value="${evaluation?.grade ?? ''}" placeholder="Pendiente"></div><div><label class="field-label">Fecha</label><input class="text-input" name="due_date" type="date" value="${dueDate}"></div><div><label class="field-label">Estado</label><select class="text-input" name="status"><option value="pending"${evaluation?.status !== 'completed' ? ' selected' : ''}>Pendiente</option><option value="completed"${evaluation?.status === 'completed' ? ' selected' : ''}>Completada</option></select></div></div><button class="button button-primary" type="submit">${evaluation ? 'Guardar cambios' : 'Añadir evaluación'}</button>`;
+  form.innerHTML = `<div class="form-grid"><div class="wide"><label class="field-label">Nombre de la evaluación</label><input class="text-input" name="title" maxlength="160" required value="${escapeHtml(evaluation?.title || '')}" placeholder="Ej. Parcial 1"></div><div><label class="field-label">Ponderación (%)</label><input class="text-input" name="percentage" type="number" min="0.01" max="100" step="0.01" required value="${evaluation ? Number(evaluation.percentage) : ''}" placeholder="25"></div>${evaluation ? `<div><label class="field-label" for="evaluation-grade">Nota (1–20)</label><input id="evaluation-grade" class="text-input" name="grade" type="number" min="1" max="20" step="0.01" value="${evaluation.grade ?? ''}" placeholder="Pendiente"${evaluation.grade === null && !recordGrade ? ' disabled' : ''}${evaluation.grade === null && recordGrade ? ' required' : ''}>${evaluation.grade === null && !recordGrade ? '<button class="text-link grade-enable" type="button" data-action="enable-grade">Registrar nota recibida</button>' : ''}</div>` : '<div class="grade-pending-note">La nota se registra cuando recibas la evaluación calificada.</div>'}<div><label class="field-label">Fecha</label><input class="text-input" name="due_date" type="date" value="${dueDate}"></div><div><label class="field-label">Estado</label><select class="text-input" name="status"><option value="pending"${evaluation?.status !== 'completed' ? ' selected' : ''}>Pendiente</option><option value="completed"${evaluation?.status === 'completed' ? ' selected' : ''}>Completada</option></select></div></div><button class="button button-primary" type="submit">${evaluation ? 'Guardar cambios' : 'Añadir evaluación'}</button>`;
   section.prepend(form);
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form));
     data.percentage = Number(data.percentage);
-    data.grade = data.grade === '' ? null : Number(data.grade);
+    data.grade = evaluation && Object.prototype.hasOwnProperty.call(data, 'grade')
+      ? (data.grade === '' ? null : Number(data.grade))
+      : null;
     data.due_date = data.due_date || null;
+    if (evaluation && data.grade !== null) data.status = 'completed';
     try {
       await api(evaluation ? `/api/evaluations/${evaluation.id}` : `/api/subjects/${subjectId}/evaluations`, {
         method: evaluation ? 'PATCH' : 'POST',
@@ -330,9 +360,16 @@ function addEvaluationForm(subjectId, evaluation = null) {
   form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-async function handleAction(action, id) {
+async function handleAction(action, id, actionElement) {
   try {
     if (action === 'details') openDetails(id);
+    if (action === 'enable-grade') {
+      const input = $('#evaluation-grade', actionElement.closest('form'));
+      input.disabled = false;
+      input.required = true;
+      actionElement.remove();
+      input.focus();
+    }
     if (action === 'edit-subject') {
       const subject = state.subjects.find((item) => String(item.id) === String(id));
       if (subject) openSubjectForm(subject);
@@ -345,6 +382,15 @@ async function handleAction(action, id) {
       if (subject && evaluation) {
         openDetails(subject.id);
         addEvaluationForm(subject.id, evaluation);
+      }
+    }
+    if (action === 'record-grade') {
+      const subject = state.subjects.find((item) => item.evaluations.some((evaluation) => String(evaluation.id) === String(id)));
+      const evaluation = subject?.evaluations.find((item) => String(item.id) === String(id));
+      if (subject && evaluation && evaluation.grade === null) {
+        openDetails(subject.id);
+        addEvaluationForm(subject.id, evaluation, true);
+        $('#evaluation-grade').focus();
       }
     }
     if (action === 'delete-subject') {
@@ -392,7 +438,7 @@ async function handleAction(action, id) {
 
 document.addEventListener('click', (event) => {
   const actionElement = event.target.closest('[data-action]');
-  if (actionElement) handleAction(actionElement.dataset.action, actionElement.dataset.id);
+  if (actionElement) handleAction(actionElement.dataset.action, actionElement.dataset.id, actionElement);
   if (event.target.classList.contains('close-modal')) closeModals();
   if (event.target === subjectModal || event.target === detailModal || event.target === welcomeModal) closeModals();
 });
@@ -414,15 +460,28 @@ $('#subject-form').addEventListener('submit', async (event) => {
 
 $('#auth-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  const password = new FormData(event.currentTarget).get('password');
+  const data = Object.fromEntries(new FormData(event.currentTarget));
   try {
-    await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) });
+    const result = await api(`/api/auth/${state.authMode}`, { method: 'POST', body: JSON.stringify(data) });
+    state.user = result.user;
     $('#auth-modal').classList.add('hidden');
     event.currentTarget.reset();
     await refresh({ welcome: true });
   } catch (error) {
     toast(error.message, true);
   }
+});
+
+$('#auth-mode-toggle').addEventListener('click', () => {
+  state.authMode = state.authMode === 'login' ? 'register' : 'login';
+  const registering = state.authMode === 'register';
+  $('#auth-title').textContent = registering ? 'Crea tu cuenta' : 'Bienvenido de vuelta';
+  $('#auth-description').textContent = registering
+    ? 'Regístrate para organizar tu espacio académico.'
+    : 'Ingresa tus datos para continuar.';
+  $('#auth-submit').innerHTML = registering ? 'Crear cuenta <span>→</span>' : 'Entrar <span>→</span>';
+  $('#auth-mode-toggle').textContent = registering ? 'Ya tengo una cuenta · Iniciar sesión' : '¿Eres nuevo? Crear una cuenta';
+  $('#auth-password').setAttribute('autocomplete', registering ? 'new-password' : 'current-password');
 });
 
 $('#add-subject').addEventListener('click', () => openSubjectForm());

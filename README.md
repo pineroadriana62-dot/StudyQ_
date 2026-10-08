@@ -5,13 +5,14 @@ Aplicación web de gestión universitaria con Express, PostgreSQL y una interfaz
 ## Funcionalidades
 
 - Crear, editar y eliminar materias.
-- Programar clases, prácticas y bloques de estudio en un horario semanal.
-- Registrar evaluaciones con ponderación, fecha, estado y notas de 1 a 20.
+- Programar clases, prácticas y bloques de estudio por día, hora y aula/profesor.
+- Registrar evaluaciones pendientes y añadir la nota (1 a 20) cuando esté disponible.
 - Validar en el servidor que las ponderaciones de cada materia no excedan el 100%, incluso ante solicitudes concurrentes.
 - Calcular nota acumulada y proyección sobre 20. Se muestra una alerta en la materia cuando la nota acumulada o la proyección quedan por debajo de 18.
 - Ver recordatorios de la agenda del día y evaluaciones pendientes de los próximos siete días; cada tarea presenta su cuenta regresiva.
 - Resumen académico, filtros por estado y materia, y modo oscuro/claro.
-- Acceso protegido por clave compartida, con cookie `HttpOnly` y vencimiento de sesión a los siete días.
+- Registro e inicio de sesión multiusuario. Cada cuenta solo puede consultar y modificar sus materias, horarios y evaluaciones.
+- Sesiones firmadas con cookie `HttpOnly`, `SameSite=Strict` y vencimiento a los siete días.
 
 ## Estructura
 
@@ -23,7 +24,6 @@ Aplicación web de gestión universitaria con Express, PostgreSQL y una interfaz
 │   └── styles.css
 ├── src/
 │   └── schema.sql
-├── .env.example
 ├── .gitignore
 ├── package.json
 ├── package-lock.json
@@ -46,7 +46,7 @@ Aplicación web de gestión universitaria con Express, PostgreSQL y una interfaz
    npm install
    ```
 
-3. Copia `.env.example` a `.env`, reemplaza `DATABASE_URL` por la cadena de conexión de PostgreSQL de tu proyecto y define `APP_PASSWORD` con una clave privada de al menos 12 caracteres. No subas `.env` al repositorio.
+3. Crea un archivo `.env`, configura `DATABASE_URL` con la cadena de conexión de PostgreSQL de tu proyecto y define `SESSION_SECRET` con una clave aleatoria privada de al menos 12 caracteres. `APP_PASSWORD` se acepta como fallback temporal para no invalidar sesiones existentes durante la migración. No subas `.env` al repositorio.
 4. Inicia la aplicación:
 
    ```bash
@@ -76,27 +76,29 @@ El valor correcto de la variable en Node.js es `process.env.DATABASE_URL` (minú
    - **Build Command:** `npm install && npm run build`
    - **Start Command:** `npm start`
    - **Health Check Path:** `/health`
-3. En la configuración del servicio, agrega `DATABASE_URL` con la URI de Supabase y `APP_PASSWORD` con una clave privada de al menos 12 caracteres. Marca ambos valores como secretos y no los incluyas en archivos versionados. `NODE_ENV=production` queda configurado por el Blueprint.
+3. En la configuración del servicio, agrega `DATABASE_URL` con la URI de Supabase y `SESSION_SECRET` con una clave aleatoria privada de al menos 12 caracteres. Marca ambos valores como secretos y no los incluyas en archivos versionados. `NODE_ENV=production` queda configurado por el Blueprint.
 4. Crea el servicio. Durante el inicio, la aplicación aplica el esquema SQL y luego comienza a servir el sitio.
 5. Abre la URL de Render y verifica `/health`. El servicio gratuito de Render puede suspenderse cuando no recibe tráfico y tardar en volver a activarse; la base de datos debe permanecer disponible para que la aplicación responda correctamente.
 
 ## API principal
 
-Todas las rutas de datos requieren iniciar sesión con `APP_PASSWORD`. La sesión se conserva en una cookie `HttpOnly`, `SameSite=Strict` y expira a los siete días. Las rutas de escritura aceptan JSON y validan sus datos en el servidor.
+Todas las rutas de datos requieren iniciar sesión. Las contraseñas se almacenan con `scrypt`; la sesión firmada se conserva en una cookie `HttpOnly`, `SameSite=Strict` y expira a los siete días. Las rutas de escritura aceptan JSON y validan sus datos en el servidor. Las evaluaciones nuevas quedan pendientes y sin nota; al registrar una nota pasan a completadas. Los promedios consideran únicamente las evaluaciones calificadas.
 
 | Método | Ruta | Acción |
 | --- | --- | --- |
-| `POST` | `/api/auth/login` | Iniciar sesión (`password`) |
+| `GET` | `/api/auth/session` | Consultar la sesión actual |
+| `POST` | `/api/auth/register` | Crear una cuenta (`email`, `password`; contraseña de 8 a 128 caracteres) |
+| `POST` | `/api/auth/login` | Iniciar sesión (`email`, `password`) |
 | `POST` | `/api/auth/logout` | Cerrar sesión |
 | `GET` | `/api/subjects` | Materias con horarios y evaluaciones |
 | `POST` | `/api/subjects` | Crear materia (`name`, `color`) |
 | `PATCH` | `/api/subjects/:id` | Editar materia |
 | `DELETE` | `/api/subjects/:id` | Eliminar materia y sus datos relacionados |
-| `POST` | `/api/subjects/:id/schedules` | Crear bloque `class`, `practice` o `study` |
+| `POST` | `/api/subjects/:id/schedules` | Crear bloque `class`, `practice` o `study` (`day_of_week`, `start_time`, `end_time`, `location` opcional) |
 | `DELETE` | `/api/schedules/:id` | Eliminar bloque horario |
 | `POST` | `/api/subjects/:id/evaluations` | Crear evaluación |
 | `PATCH` | `/api/evaluations/:id` | Editar nota, porcentaje, vencimiento o estado |
 | `DELETE` | `/api/evaluations/:id` | Eliminar evaluación |
 | `GET` | `/health` | Comprobar servidor y conexión PostgreSQL |
 
-Las ponderaciones son mayores que cero y la suma por materia no puede exceder 100%. Las notas aceptadas van de 1 a 20. Para cada materia, la nota acumulada es el promedio ponderado de las evaluaciones calificadas; la proyección supone nota máxima 20 en el porcentaje restante hasta completar el 100%.
+Las ponderaciones son mayores que cero y la suma por materia no puede exceder 100%. Las notas aceptadas van de 1 a 20 y se guardan como nulas hasta registrarlas. Para cada materia, la nota acumulada es el promedio ponderado de las evaluaciones calificadas; la proyección supone nota máxima 20 en el porcentaje restante hasta completar el 100%. Al migrar una base existente, el primer usuario registrado recibe los datos antiguos que aún no tenían propietario.
