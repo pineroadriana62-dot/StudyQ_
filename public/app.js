@@ -460,12 +460,13 @@ $('#subject-form').addEventListener('submit', async (event) => {
 
 $('#auth-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  const data = Object.fromEntries(new FormData(event.currentTarget));
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form));
   try {
     const result = await api(`/api/auth/${state.authMode}`, { method: 'POST', body: JSON.stringify(data) });
     state.user = result.user;
     $('#auth-modal').classList.add('hidden');
-    event.currentTarget.reset();
+    form.reset();
     await refresh({ welcome: true });
   } catch (error) {
     toast(error.message, true);
