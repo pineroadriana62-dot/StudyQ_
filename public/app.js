@@ -231,30 +231,33 @@ function updateDates() {
   $('#full-date').textContent = date.charAt(0).toUpperCase() + date.slice(1);
 }
 
-async function refresh({ welcome = false } = {}) {
+async function verificarSesion() {
   try {
-    let session;
+    const response = await fetch('/api/auth/session');
+    if (!response.ok) throw new Error('Error en la red');
 
-    try {
-      session = await api('/api/auth/session');
-      localStorage.setItem('user_session', JSON.stringify(session));
-    } catch (error) {
-      const isOffline = !navigator.onLine
-        || error instanceof TypeError
-        || /ERR_INTERNET_DISCONNECTED|Failed to fetch|NetworkError/i.test(error.message || '');
+    const data = await response.json();
+    localStorage.setItem('user_session', JSON.stringify(data));
+    return data;
+  } catch (error) {
+    console.log('Modo offline activado: usando sesión local.', error);
 
-      if (!isOffline) throw error;
-
+    const localSession = localStorage.getItem('user_session');
+    if (localSession) {
       try {
-        const savedSession = localStorage.getItem('user_session');
-        session = savedSession
-          ? { ...JSON.parse(savedSession), offline: true }
-          : { authenticated: false, user: null, offline: true };
+        return { ...JSON.parse(localSession), offline: true };
       } catch (_) {
         localStorage.removeItem('user_session');
-        session = { authenticated: false, user: null, offline: true };
       }
     }
+
+    return { authenticated: false, name: 'Estudiante', user: null, offline: true };
+  }
+}
+
+async function refresh({ welcome = false } = {}) {
+  try {
+    const session = await verificarSesion();
 
     if (session.offline && !session.authenticated) {
       toast('Sin conexión. No hay una sesión guardada disponible.', true);

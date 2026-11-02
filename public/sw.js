@@ -28,10 +28,25 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
+
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(event.request).catch(() => new Response(JSON.stringify({
+        authenticated: false,
+        offline: true,
+        error: 'Sin conexión a internet'
+      }), {
+        status: 503,
+        statusText: 'Sin conexión',
+        headers: { 'Content-Type': 'application/json' }
+      }))
+    );
+    return;
+  }
+
+  if (event.request.method !== 'GET') return;
 
   const isStaticAsset = STATIC_ASSETS.includes(url.pathname);
   if (!isStaticAsset && event.request.mode !== 'navigate') return;
