@@ -1,4 +1,4 @@
-const CACHE_NAME = 'studyq-cache-v1';
+const CACHE_NAME = 'studyq-cache-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -10,11 +10,19 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(STATIC_ASSETS))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+
+    await Promise.all(STATIC_ASSETS.map(async (asset) => {
+      try {
+        await cache.add(asset);
+      } catch (error) {
+        console.warn(`No se pudo precargar ${asset}:`, error);
+      }
+    }));
+
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -38,9 +46,12 @@ self.addEventListener('fetch', (event) => {
         offline: true,
         error: 'Sin conexión a internet'
       }), {
-        status: 503,
-        statusText: 'Sin conexión',
-        headers: { 'Content-Type': 'application/json' }
+        status: 200,
+        statusText: 'OK - Modo sin conexión',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store'
+        }
       }))
     );
     return;

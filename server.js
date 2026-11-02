@@ -209,6 +209,10 @@ async function getSubjectBundle(userId) {
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '32kb' }));
+app.get(['/sw.js', '/manifest.json'], (_req, res, next) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/health', asyncRoute(async (_req, res) => {

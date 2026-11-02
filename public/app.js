@@ -237,11 +237,22 @@ async function verificarSesion() {
     if (!response.ok) throw new Error('Error en la red');
 
     const data = await response.json();
+
+    if (data.offline) {
+      const localSession = localStorage.getItem('user_session');
+      if (localSession) {
+        try {
+          return { ...JSON.parse(localSession), offline: true };
+        } catch (_) {
+          localStorage.removeItem('user_session');
+        }
+      }
+      return { authenticated: false, name: 'Estudiante', user: null, offline: true };
+    }
+
     localStorage.setItem('user_session', JSON.stringify(data));
     return data;
-  } catch (error) {
-    console.log('Modo offline activado: usando sesión local.', error);
-
+  } catch (_error) {
     const localSession = localStorage.getItem('user_session');
     if (localSession) {
       try {
@@ -563,16 +574,22 @@ $$('.nav-link').forEach((link) => link.addEventListener('click', () => {
 
 if (localStorage.getItem('studyq-theme') === 'dark') document.body.classList.add('dark');
 updateDates();
-refresh({ welcome: true });
 
 window.addEventListener('load', () => {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js')
-      .then((registration) => {
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+      .then(async (registration) => {
         console.log('Service Worker registrado:', registration.scope);
+        await navigator.serviceWorker.ready;
+        await refresh({ welcome: true });
       })
       .catch((error) => {
         console.error('No se pudo registrar el Service Worker:', error);
+        refresh({ welcome: true }).catch((refreshError) => {
+          console.error('No se pudo verificar la sesión:', refreshError);
+        });
       });
+  } else {
+    refresh({ welcome: true });
   }
 });
