@@ -1,4 +1,4 @@
-const CACHE_NAME = 'studyq-cache-v2';
+const CACHE_NAME = 'studyq-cache-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -16,8 +16,8 @@ self.addEventListener('install', (event) => {
     await Promise.all(STATIC_ASSETS.map(async (asset) => {
       try {
         await cache.add(asset);
-      } catch (error) {
-        console.warn(`No se pudo precargar ${asset}:`, error);
+      } catch (_error) {
+        // El recurso puede cargarse después con la estrategia Cache First.
       }
     }));
 

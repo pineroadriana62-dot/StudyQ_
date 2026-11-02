@@ -233,6 +233,8 @@ function updateDates() {
 
 async function verificarSesion() {
   try {
+    if (!navigator.onLine) throw new Error('Sin conexión');
+
     const response = await fetch('/api/auth/session');
     if (!response.ok) throw new Error('Error en la red');
 
