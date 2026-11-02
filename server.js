@@ -178,7 +178,7 @@ function requireStatus(value) {
 
 async function getSubjectBundle(userId) {
   const [subjectResult, scheduleResult, evaluationResult] = await Promise.all([
-    pool.query('SELECT id, name, color FROM subjects WHERE user_id = $1 ORDER BY name', [userId]),
+    pool.query('SELECT id, period_id, name, color FROM subjects WHERE user_id = $1 ORDER BY name', [userId]),
     pool.query(
       `SELECT id, subject_id, type, day_of_week, to_char(start_time, 'HH24:MI') AS start_time,
               to_char(end_time, 'HH24:MI') AS end_time, location
@@ -288,6 +288,69 @@ app.use('/api', (req, _res, next) => {
   return next();
 });
 
+app.get('/api/periods', asyncRoute(async (req, res) => {
+  const result = await pool.query(
+    `SELECT id, name, is_active, created_at
+     FROM academic_periods
+     WHERE user_id = $1
+     ORDER BY is_active DESC, created_at DESC, id DESC`,
+    [req.userId]
+  );
+  res.json(result.rows);
+}));
+
+app.post('/api/periods', asyncRoute(async (req, res) => {
+  const name = requireText(req.body.name, 'El nombre del periodo', 100);
+  const result = await pool.query(
+    `INSERT INTO academic_periods (user_id, name, is_active)
+     VALUES ($1, $2, false)
+     RETURNING id, name, is_active, created_at`,
+    [req.userId, name]
+  );
+  res.status(201).json(result.rows[0]);
+}));
+
+app.put('/api/periods/:id/activate', asyncRoute(async (req, res) => {
+  const periodId = requireId(req.params.id, 'El periodo');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const period = await client.query(
+      'SELECT id FROM academic_periods WHERE id = $1 AND user_id = $2 FOR UPDATE',
+      [periodId, req.userId]
+    );
+    if (!period.rowCount) throw new HttpError(404, 'No se encontró el periodo académico.');
+
+    await client.query(
+      'UPDATE academic_periods SET is_active = false WHERE user_id = $1 AND is_active = true',
+      [req.userId]
+    );
+    const result = await client.query(
+      `UPDATE academic_periods SET is_active = true
+       WHERE id = $1 AND user_id = $2
+       RETURNING id, name, is_active, created_at`,
+      [periodId, req.userId]
+    );
+    await client.query('COMMIT');
+    res.json(result.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}));
+
+app.delete('/api/periods/:id', asyncRoute(async (req, res) => {
+  const periodId = requireId(req.params.id, 'El periodo');
+  const result = await pool.query(
+    'DELETE FROM academic_periods WHERE id = $1 AND user_id = $2',
+    [periodId, req.userId]
+  );
+  if (!result.rowCount) throw new HttpError(404, 'No se encontró el periodo académico.');
+  res.status(204).end();
+}));
+
 app.get('/api/subjects', asyncRoute(async (req, res) => {
   res.json(await getSubjectBundle(req.userId));
 }));
@@ -295,9 +358,31 @@ app.get('/api/subjects', asyncRoute(async (req, res) => {
 app.post('/api/subjects', asyncRoute(async (req, res) => {
   const name = requireText(req.body.name, 'El nombre', 100);
   const color = req.body.color === undefined ? '#635BFF' : requireColor(req.body.color);
+
+  let periodId = null;
+  if (req.body.period_id !== undefined && req.body.period_id !== null && req.body.period_id !== '') {
+    periodId = requireId(req.body.period_id, 'El periodo académico');
+  } else {
+    const activePeriod = await pool.query(
+      'SELECT id FROM academic_periods WHERE user_id = $1 AND is_active = true LIMIT 1',
+      [req.userId]
+    );
+    if (activePeriod.rowCount) periodId = activePeriod.rows[0].id;
+  }
+
+  if (periodId !== null) {
+    const period = await pool.query(
+      'SELECT id FROM academic_periods WHERE id = $1 AND user_id = $2',
+      [periodId, req.userId]
+    );
+    if (!period.rowCount) throw new HttpError(404, 'No se encontró el periodo académico.');
+  }
+
   const result = await pool.query(
-    'INSERT INTO subjects (user_id, name, color) VALUES ($1, $2, $3) RETURNING id, name, color',
-    [req.userId, name, color]
+    `INSERT INTO subjects (user_id, period_id, name, color)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, period_id, name, color`,
+    [req.userId, periodId, name, color]
   );
   res.status(201).json({ ...result.rows[0], schedules: [], evaluations: [] });
 }));
