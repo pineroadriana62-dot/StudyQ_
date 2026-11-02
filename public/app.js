@@ -233,7 +233,33 @@ function updateDates() {
 
 async function refresh({ welcome = false } = {}) {
   try {
-    const session = await api('/api/auth/session');
+    let session;
+
+    try {
+      session = await api('/api/auth/session');
+      localStorage.setItem('user_session', JSON.stringify(session));
+    } catch (error) {
+      const isOffline = !navigator.onLine
+        || error instanceof TypeError
+        || /ERR_INTERNET_DISCONNECTED|Failed to fetch|NetworkError/i.test(error.message || '');
+
+      if (!isOffline) throw error;
+
+      try {
+        const savedSession = localStorage.getItem('user_session');
+        session = savedSession
+          ? { ...JSON.parse(savedSession), offline: true }
+          : { authenticated: false, user: null, offline: true };
+      } catch (_) {
+        localStorage.removeItem('user_session');
+        session = { authenticated: false, user: null, offline: true };
+      }
+    }
+
+    if (session.offline && !session.authenticated) {
+      toast('Sin conexión. No hay una sesión guardada disponible.', true);
+    }
+
     if (!session.authenticated) {
       closeModals();
       state.subjects = [];
@@ -248,7 +274,13 @@ async function refresh({ welcome = false } = {}) {
     }
     state.user = session.user;
     $('#profile-name').textContent = session.user.email;
-    state.subjects = await api('/api/subjects');
+
+    if (session.offline) {
+      toast('Estás sin conexión. Se está usando la sesión guardada.', true);
+    } else {
+      state.subjects = await api('/api/subjects');
+    }
+
     subjectFilterOptions();
     renderStats();
     renderSubjects();
