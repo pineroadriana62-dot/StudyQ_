@@ -529,3 +529,15 @@ $$('.nav-link').forEach((link) => link.addEventListener('click', () => {
 if (localStorage.getItem('studyq-theme') === 'dark') document.body.classList.add('dark');
 updateDates();
 refresh({ welcome: true });
+
+window.addEventListener('load', () => {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+      .then((registration) => {
+        console.log('Service Worker registrado:', registration.scope);
+      })
+      .catch((error) => {
+        console.error('No se pudo registrar el Service Worker:', error);
+      });
+  }
+});
