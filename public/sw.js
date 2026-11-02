@@ -1,4 +1,4 @@
-const CACHE_NAME = 'studyq-cache-v3';
+const CACHE_NAME = 'studyq-cache-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -15,9 +15,10 @@ self.addEventListener('install', (event) => {
 
     await Promise.all(STATIC_ASSETS.map(async (asset) => {
       try {
-        await cache.add(asset);
+        const response = await fetch(asset, { cache: 'reload' });
+        if (response.ok) await cache.put(asset, response.clone());
       } catch (_error) {
-        // El recurso puede cargarse después con la estrategia Cache First.
+        // Se intenta nuevamente desde la estrategia Cache First.
       }
     }));
 
@@ -69,12 +70,20 @@ self.addEventListener('fetch', (event) => {
       return fetch(event.request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
           const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          caches.open(CACHE_NAME)
+            .then((cache) => cache.put(event.request, responseToCache))
+            .catch(() => {});
         }
         return networkResponse;
-      }).catch(() => {
+      }).catch(async () => {
         if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
+          const indexCache = await caches.match('/index.html');
+          if (indexCache) return indexCache;
+
+          return new Response('<!doctype html><html><head><meta charset="utf-8"><title>StudyQ</title></head><body><main><h1>StudyQ</h1><p>Estás sin conexión.</p></main></body></html>', {
+            status: 200,
+            headers: { 'Content-Type': 'text/html; charset=utf-8' }
+          });
         }
         return new Response('', { status: 503, statusText: 'Sin conexión' });
       });
