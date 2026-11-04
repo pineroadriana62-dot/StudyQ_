@@ -5,6 +5,9 @@ Aplicación web de gestión universitaria con Express, PostgreSQL y una interfaz
 ## Funcionalidades
 
 - Crear, editar y eliminar materias.
+- Organizar materias por periodos académicos trimestrales o semestrales.
+- Crear periodos, cambiar entre ellos y finalizar periodos para el GPA histórico.
+- Calcular el promedio acumulado de los periodos finalizados.
 - Programar clases, prácticas y bloques de estudio por día, hora y aula/profesor.
 - Registrar evaluaciones pendientes y añadir la nota (1 a 20) cuando esté disponible.
 - Validar en el servidor que las ponderaciones de cada materia no excedan el 100%, incluso ante solicitudes concurrentes.

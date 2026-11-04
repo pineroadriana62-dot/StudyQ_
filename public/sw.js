@@ -1,4 +1,4 @@
-const CACHE_NAME = 'studyq-cache-v5';
+const CACHE_NAME = 'studyq-cache-v6';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -63,30 +63,26 @@ self.addEventListener('fetch', (event) => {
   const isStaticAsset = STATIC_ASSETS.includes(url.pathname);
   if (!isStaticAsset && event.request.mode !== 'navigate') return;
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+  event.respondWith((async () => {
+    try {
+      const networkResponse = await fetch(event.request);
+      if (networkResponse && networkResponse.status === 200) {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(event.request, networkResponse.clone());
+      }
+      return networkResponse;
+    } catch (_error) {
+      const cachedResponse = await caches.match(event.request);
       if (cachedResponse) return cachedResponse;
-
-      return fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME)
-            .then((cache) => cache.put(event.request, responseToCache))
-            .catch(() => {});
-        }
-        return networkResponse;
-      }).catch(async () => {
-        if (event.request.mode === 'navigate') {
-          const indexCache = await caches.match('/index.html');
-          if (indexCache) return indexCache;
-
-          return new Response('<!doctype html><html><head><meta charset="utf-8"><title>StudyQ</title></head><body><main><h1>StudyQ</h1><p>Estás sin conexión.</p></main></body></html>', {
-            status: 200,
-            headers: { 'Content-Type': 'text/html; charset=utf-8' }
-          });
-        }
-        return new Response('', { status: 503, statusText: 'Sin conexión' });
-      });
-    })
-  );
+      if (event.request.mode === 'navigate') {
+        const indexCache = await caches.match('/index.html');
+        if (indexCache) return indexCache;
+        return new Response('<!doctype html><html><head><meta charset="utf-8"><title>StudyQ</title></head><body><main><h1>StudyQ</h1><p>Estás sin conexión.</p></main></body></html>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        });
+      }
+      return new Response('', { status: 503, statusText: 'Sin conexión' });
+    }
+  })());
 });
