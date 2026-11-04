@@ -41,10 +41,10 @@
       <div class="sidebar-bottom">
         <div class="sidebar-tip">
           <span class="tip-spark">✳</span>
-          <p>Un paso a la vez.<br><strong>Vas muy bien.</strong></p>
+                  <p id="personal-tip">Un paso a la vez.<br><strong>Vas muy bien.</strong></p>
           <span class="tip-orbit"></span>
         </div>
-        <div class="profile-row"><div class="avatar">ES</div><div><strong id="profile-name">Mi espacio</strong><small>Estudiante</small></div><span class="profile-more">···</span></div>
+        <button class="profile-row" id="profile-button" type="button"><div class="avatar" id="profile-avatar">ES</div><div><strong id="profile-name">Mi espacio</strong><small>Estudiante</small></div><span class="profile-more">···</span></button>
       </div>
     </aside>
 
@@ -65,7 +65,7 @@
         <section id="dashboard" class="welcome-heading">
           <div>
             <div class="eyebrow"><span class="eyebrow-dot"></span> TU ESPACIO ACADÉMICO</div>
-            <h1>¡Hola! <span class="wave">✳</span></h1>
+            <h1 id="dashboard-greeting">¡Hola! <span class="wave">✳</span></h1>
             <p>Este es tu espacio para aprender, organizarte y llegar más lejos.</p>
           </div>
           <div class="date-pill"><span class="date-icon">▦</span><span id="full-date"></span></div>
@@ -132,8 +132,11 @@
   <div id="period-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="period-modal-title">
     <div class="modal-card"><div class="modal-heading"><div><div class="eyebrow">NUEVO CICLO</div><h2 id="period-modal-title">Crear periodo académico</h2></div><button class="icon-button close-modal" type="button" aria-label="Cerrar">×</button></div><form id="period-form"><label class="field-label" for="period-name">Nombre del periodo</label><input id="period-name" class="text-input" name="name" maxlength="100" placeholder="Ej. Trimestre 2" required><div class="modal-actions"><button class="button button-light close-modal" type="button">Cancelar</button><button class="button button-primary" type="submit">Crear periodo</button></div></form></div>
   </div>
+  <div id="profile-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+    <div class="modal-card"><div class="modal-heading"><div><div class="eyebrow">PERSONALIZA TU PERFIL</div><h2 id="profile-modal-title">Tu nombre</h2></div><button class="icon-button close-modal" type="button" aria-label="Cerrar">×</button></div><form id="profile-form"><label class="field-label" for="profile-name-input">¿Cómo quieres que te llamemos?</label><input id="profile-name-input" class="text-input" name="name" maxlength="100" required><div class="modal-actions"><button class="button button-light close-modal" type="button">Cancelar</button><button class="button button-primary" type="submit">Guardar nombre</button></div></form></div>
+  </div>
   <div id="auth-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-    <div class="modal-card auth-modal"><div class="auth-mark">S</div><div class="eyebrow">TU ESPACIO, SOLO PARA TI</div><h2 id="auth-title">Bienvenido de vuelta</h2><p id="auth-description">Ingresa tus datos para continuar.</p><form id="auth-form"><label class="field-label" for="auth-email">Correo electrónico</label><input id="auth-email" class="text-input" name="email" type="email" maxlength="254" autocomplete="email" required><label class="field-label" for="auth-password">Contraseña</label><input id="auth-password" class="text-input" name="password" type="password" minlength="8" maxlength="128" autocomplete="current-password" required><button id="auth-submit" class="button button-primary" type="submit">Entrar <span>→</span></button></form><button id="auth-mode-toggle" class="text-link auth-toggle" type="button">¿Eres nuevo? Crear una cuenta</button></div>
+    <div class="modal-card auth-modal"><div class="auth-mark">S</div><div class="eyebrow">TU ESPACIO, SOLO PARA TI</div><h2 id="auth-title">Bienvenido de vuelta</h2><p id="auth-description">Ingresa tus datos para continuar.</p><form id="auth-form"><div id="auth-name-field" class="hidden"><label class="field-label" for="auth-name">Nombre</label><input id="auth-name" class="text-input" name="name" maxlength="100" autocomplete="given-name" placeholder="Ej. Adri"></div><label class="field-label" for="auth-email">Correo electrónico</label><input id="auth-email" class="text-input" name="email" type="email" maxlength="254" autocomplete="email" required><label class="field-label" for="auth-password">Contraseña</label><input id="auth-password" class="text-input" name="password" type="password" minlength="8" maxlength="128" autocomplete="current-password" required><button id="auth-submit" class="button button-primary" type="submit">Entrar <span>→</span></button></form><button id="auth-mode-toggle" class="text-link auth-toggle" type="button">¿Eres nuevo? Crear una cuenta</button></div>
   </div>
   <div id="toast-region" class="toast-region" aria-live="polite"></div>
   <script src="/app.js" defer></script>

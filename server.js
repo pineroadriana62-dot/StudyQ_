@@ -85,6 +85,17 @@ function requireEmail(value) {
   return email;
 }
 
+function requireName(value, required = false) {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    if (required) throw new HttpError(400, 'El nombre es obligatorio.');
+    return '';
+  }
+  if (typeof value !== 'string' || value.trim().length < 1 || value.trim().length > 100) {
+    throw new HttpError(400, 'El nombre debe tener entre 1 y 100 caracteres.');
+  }
+  return value.trim();
+}
+
 function requirePassword(value) {
   if (typeof value !== 'string' || value.length < 8 || value.length > 128) {
     throw new HttpError(400, 'La contraseña debe tener entre 8 y 128 caracteres.');
@@ -229,7 +240,7 @@ app.get('/health', asyncRoute(async (_req, res) => {
 app.get('/api/auth/session', asyncRoute(async (req, res) => {
   const userId = authenticatedUserId(req);
   if (!userId) return res.json({ authenticated: false });
-  const result = await pool.query('SELECT id, email FROM users WHERE id = $1', [userId]);
+  const result = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [userId]);
   if (!result.rowCount) return res.json({ authenticated: false });
   res.json({ authenticated: true, user: result.rows[0] });
 }));
@@ -237,6 +248,7 @@ app.get('/api/auth/session', asyncRoute(async (req, res) => {
 app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const email = requireEmail(req.body.email);
   const password = requirePassword(req.body.password);
+  const name = requireName(req.body.name, true);
   const passwordHash = await hashPassword(password);
   const client = await pool.connect();
   try {
@@ -244,8 +256,8 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
     await client.query('SELECT pg_advisory_xact_lock(73194521)');
     const existingUsers = await client.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
     const created = await client.query(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email',
-      [email, passwordHash]
+      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name',
+      [email, passwordHash, name]
     );
     if (!existingUsers.rows[0].present) {
       const userId = created.rows[0].id;
@@ -268,12 +280,12 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const email = requireEmail(req.body.email);
   const password = requirePassword(req.body.password);
-  const result = await pool.query('SELECT id, email, password_hash FROM users WHERE email = $1', [email]);
+  const result = await pool.query('SELECT id, email, name, password_hash FROM users WHERE email = $1', [email]);
   if (!result.rowCount || !await verifyPassword(password, result.rows[0].password_hash)) {
     throw new HttpError(401, 'El correo o la contraseña no son correctos.');
   }
   setSessionCookie(res, result.rows[0].id);
-  res.json({ authenticated: true, user: { id: result.rows[0].id, email: result.rows[0].email } });
+  res.json({ authenticated: true, user: { id: result.rows[0].id, email: result.rows[0].email, name: result.rows[0].name || '' } });
 }));
 
 app.post('/api/auth/logout', (_req, res) => {
@@ -316,6 +328,16 @@ async function periodSummaries(userId) {
   }
   return enriched;
 }
+
+app.patch('/api/profile', asyncRoute(async (req, res) => {
+  const name = requireName(req.body.name, true);
+  const result = await pool.query(
+    'UPDATE users SET name = $1 WHERE id = $2 RETURNING id, email, name',
+    [name, req.userId]
+  );
+  if (!result.rowCount) throw new HttpError(404, 'No se encontró el usuario.');
+  res.json({ user: result.rows[0] });
+}));
 
 app.get('/api/periods', asyncRoute(async (req, res) => {
   res.json(await periodSummaries(req.userId));

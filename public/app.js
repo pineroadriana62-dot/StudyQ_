@@ -280,6 +280,20 @@ async function verificarSesion() {
   }
 }
 
+function renderPersonalization() {
+  const name = String(state.user?.name || '').trim();
+  const firstName = name ? name.split(/\s+/)[0] : '';
+  const greetingName = firstName || 'Estudiante';
+  $('#dashboard-greeting').innerHTML = `¡Hola, ${escapeHtml(greetingName)}! <span class="wave">✳</span>`;
+  $('#profile-name').textContent = name || state.user?.email || 'Mi espacio';
+  $('#profile-avatar').textContent = (firstName ? firstName.slice(0, 2) : 'ES').toUpperCase();
+  const tips = name
+    ? [`${firstName}, repasa tus apuntes durante 25 minutos y descansa 5.`, `${firstName}, organiza primero las evaluaciones con mayor ponderación.`, `${firstName}, revisa hoy tu progreso y celebra cada avance.`]
+    : ['Organiza tus materias por prioridad.', 'Repasa con sesiones cortas de 25 minutos.', 'Revisa tus evaluaciones antes de comenzar la semana.'];
+  const tip = tips[new Date().getDate() % tips.length];
+  $('#personal-tip').innerHTML = `${escapeHtml(tip)}<br><strong>¡Tú puedes!</strong>`;
+}
+
 async function refresh({ welcome = false } = {}) {
   try {
     const session = await verificarSesion();
@@ -301,7 +315,7 @@ async function refresh({ welcome = false } = {}) {
       return;
     }
     state.user = session.user;
-    $('#profile-name').textContent = session.user.email;
+    renderPersonalization();
 
     if (session.offline) {
       toast('Estás sin conexión. Se está usando la sesión guardada.', true);
@@ -359,7 +373,7 @@ function openSubjectForm(subject = null) {
 }
 
 function closeModals() {
-  [subjectModal, detailModal, welcomeModal, $('#period-modal')].forEach((modal) => modal?.classList.add('hidden'));
+  [subjectModal, detailModal, welcomeModal, $('#period-modal'), $('#profile-modal')].forEach((modal) => modal?.classList.add('hidden'));
 }
 
 function openDetails(subjectId) {
@@ -511,7 +525,7 @@ document.addEventListener('click', (event) => {
   const actionElement = event.target.closest('[data-action]');
   if (actionElement) handleAction(actionElement.dataset.action, actionElement.dataset.id, actionElement);
   if (event.target.classList.contains('close-modal')) closeModals();
-  if ([subjectModal, detailModal, welcomeModal, $('#period-modal')].includes(event.target)) closeModals();
+  if ([subjectModal, detailModal, welcomeModal, $('#period-modal'), $('#profile-modal')].includes(event.target)) closeModals();
 });
 
 $('#subject-form').addEventListener('submit', async (event) => {
@@ -555,6 +569,9 @@ $('#auth-mode-toggle').addEventListener('click', () => {
   $('#auth-submit').innerHTML = registering ? 'Crear cuenta <span>→</span>' : 'Entrar <span>→</span>';
   $('#auth-mode-toggle').textContent = registering ? 'Ya tengo una cuenta · Iniciar sesión' : '¿Eres nuevo? Crear una cuenta';
   $('#auth-password').setAttribute('autocomplete', registering ? 'new-password' : 'current-password');
+  const nameField = $('#auth-name-field');
+  nameField.classList.toggle('hidden', !registering);
+  $('#auth-name').required = registering;
 });
 
 $('#add-subject').addEventListener('click', () => openSubjectForm());
@@ -621,6 +638,23 @@ $('#welcome-done').addEventListener('click', closeModals);
 $('#open-welcome').addEventListener('click', () => {
   renderWelcome();
   welcomeModal.classList.remove('hidden');
+});
+$('#profile-button').addEventListener('click', () => {
+  if (!state.user) return;
+  $('#profile-name-input').value = state.user.name || '';
+  $('#profile-modal').classList.remove('hidden');
+  $('#profile-name-input').focus();
+});
+$('#profile-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget));
+  try {
+    const result = await api('/api/profile', { method: 'PATCH', body: JSON.stringify(data) });
+    state.user = result.user;
+    renderPersonalization();
+    $('#profile-modal').classList.add('hidden');
+    toast('Nombre actualizado.');
+  } catch (error) { toast(error.message, true); }
 });
 $('#logout-button').addEventListener('click', async () => {
   try {
