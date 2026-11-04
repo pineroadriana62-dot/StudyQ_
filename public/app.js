@@ -12,7 +12,10 @@ const state = {
   subjectFilter: 'all',
   showAllTasks: false,
   editingSubjectId: null,
-  detailSubjectId: null
+  detailSubjectId: null,
+  periods: [],
+  activePeriodId: null,
+  academicSummary: { historical_average: null, completed_periods: 0 }
 };
 
 const subjectModal = $('#subject-modal');
@@ -131,6 +134,15 @@ function renderStats() {
   $('#stat-average').textContent = average === null ? '—' : average.toFixed(1);
   $('#stat-sessions').textContent = sessions;
   $('#subject-count').textContent = state.subjects.length;
+}
+
+function renderPeriods() {
+  const tabs = $('#period-tabs');
+  if (!tabs) return;
+  tabs.innerHTML = state.periods.map((period) => `<button type="button" class="period-tab${String(period.id) === state.activePeriodId ? ' active' : ''}" data-period-id="${period.id}">${escapeHtml(period.name)}${period.is_finished ? ' · Finalizado' : ''}${period.average !== null ? `<small>${Number(period.average).toFixed(1)} / 20</small>` : ''}</button>`).join('');
+  const historical = state.academicSummary.historical_average;
+  $('#historical-gpa').textContent = historical === null ? '—' : Number(historical).toFixed(1);
+  $('#historical-periods').textContent = `${state.academicSummary.completed_periods} periodo${state.academicSummary.completed_periods === 1 ? '' : 's'} finalizado${state.academicSummary.completed_periods === 1 ? '' : 's'}`;
 }
 
 function nextEvaluation(subject) {
@@ -294,9 +306,20 @@ async function refresh({ welcome = false } = {}) {
     if (session.offline) {
       toast('Estás sin conexión. Se está usando la sesión guardada.', true);
     } else {
-      state.subjects = await api('/api/subjects');
+      state.periods = await api('/api/periods');
+      state.academicSummary = await api('/api/academic-summary');
+      const active = state.periods.find((period) => period.is_active);
+      state.activePeriodId = active ? String(active.id) : (state.periods[0] ? String(state.periods[0].id) : null);
+      state.subjects = state.activePeriodId
+        ? await api(`/api/subjects?period_id=${encodeURIComponent(state.activePeriodId)}`)
+        : [];
+      if (state.periods.length && !active) {
+        await api(`/api/periods/${state.activePeriodId}/activate`, { method: 'PUT' });
+        state.periods = await api('/api/periods');
+      }
     }
 
+    renderPeriods();
     subjectFilterOptions();
     renderStats();
     renderSubjects();
@@ -336,7 +359,7 @@ function openSubjectForm(subject = null) {
 }
 
 function closeModals() {
-  [subjectModal, detailModal, welcomeModal].forEach((modal) => modal.classList.add('hidden'));
+  [subjectModal, detailModal, welcomeModal, $('#period-modal')].forEach((modal) => modal?.classList.add('hidden'));
 }
 
 function openDetails(subjectId) {
@@ -488,12 +511,13 @@ document.addEventListener('click', (event) => {
   const actionElement = event.target.closest('[data-action]');
   if (actionElement) handleAction(actionElement.dataset.action, actionElement.dataset.id, actionElement);
   if (event.target.classList.contains('close-modal')) closeModals();
-  if (event.target === subjectModal || event.target === detailModal || event.target === welcomeModal) closeModals();
+  if ([subjectModal, detailModal, welcomeModal, $('#period-modal')].includes(event.target)) closeModals();
 });
 
 $('#subject-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.currentTarget));
+  data.period_id = state.activePeriodId;
   try {
     if (state.editingSubjectId) {
       await api(`/api/subjects/${state.editingSubjectId}`, { method: 'PATCH', body: JSON.stringify(data) });
@@ -536,6 +560,35 @@ $('#auth-mode-toggle').addEventListener('click', () => {
 $('#add-subject').addEventListener('click', () => openSubjectForm());
 $('#add-subject-top').addEventListener('click', () => openSubjectForm());
 $('#empty-add-subject').addEventListener('click', () => openSubjectForm());
+$('#period-tabs').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-period-id]');
+  if (!button) return;
+  const periodId = button.dataset.periodId;
+  try {
+    await api(`/api/periods/${periodId}/activate`, { method: 'PUT' });
+    await refresh();
+  } catch (error) { toast(error.message, true); }
+});
+$('#new-period').addEventListener('click', () => $('#period-modal').classList.remove('hidden'));
+$('#finish-period').addEventListener('click', async () => {
+  if (!state.activePeriodId) return;
+  try {
+    await api(`/api/periods/${state.activePeriodId}/finish`, { method: 'PUT' });
+    await refresh();
+    toast('Periodo finalizado. Se integró al GPA histórico.');
+  } catch (error) { toast(error.message, true); }
+});
+$('#period-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget));
+  try {
+    await api('/api/periods', { method: 'POST', body: JSON.stringify(data) });
+    $('#period-modal').classList.add('hidden');
+    event.currentTarget.reset();
+    await refresh();
+    toast('Nuevo periodo creado. El espacio está listo para tus materias.');
+  } catch (error) { toast(error.message, true); }
+});
 $('#subject-filter').addEventListener('change', (event) => {
   state.subjectFilter = event.target.value;
   renderTasks();

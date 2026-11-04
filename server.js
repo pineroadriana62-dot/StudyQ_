@@ -176,9 +176,15 @@ function requireStatus(value) {
   return value;
 }
 
-async function getSubjectBundle(userId) {
+async function getSubjectBundle(userId, periodId = null) {
+  const subjectParams = [userId];
+  let subjectWhere = 'WHERE user_id = $1';
+  if (periodId !== null) {
+    subjectParams.push(periodId);
+    subjectWhere += ' AND period_id = $2';
+  }
   const [subjectResult, scheduleResult, evaluationResult] = await Promise.all([
-    pool.query('SELECT id, period_id, name, color FROM subjects WHERE user_id = $1 ORDER BY name', [userId]),
+    pool.query(`SELECT id, period_id, name, color FROM subjects ${subjectWhere} ORDER BY name`, subjectParams),
     pool.query(
       `SELECT id, subject_id, type, day_of_week, to_char(start_time, 'HH24:MI') AS start_time,
               to_char(end_time, 'HH24:MI') AS end_time, location
@@ -288,26 +294,54 @@ app.use('/api', (req, _res, next) => {
   return next();
 });
 
+function subjectAverage(subject) {
+  const graded = (subject.evaluations || []).filter((evaluation) => evaluation.grade !== null && evaluation.grade !== '');
+  if (!graded.length) return null;
+  const weight = graded.reduce((sum, evaluation) => sum + Number(evaluation.percentage), 0);
+  if (!weight) return null;
+  const earned = graded.reduce((sum, evaluation) => sum + Number(evaluation.grade) * Number(evaluation.percentage) / 100, 0);
+  return earned * 100 / weight;
+}
+
+async function periodSummaries(userId) {
+  const periods = await pool.query(
+    `SELECT id, name, is_active, is_finished, created_at
+     FROM academic_periods WHERE user_id = $1
+     ORDER BY is_active DESC, created_at DESC, id DESC`, [userId]);
+  const enriched = [];
+  for (const period of periods.rows) {
+    const subjects = await getSubjectBundle(userId, Number(period.id));
+    const averages = subjects.map(subjectAverage).filter((average) => average !== null);
+    enriched.push({ ...period, average: averages.length ? averages.reduce((sum, value) => sum + value, 0) / averages.length : null });
+  }
+  return enriched;
+}
+
 app.get('/api/periods', asyncRoute(async (req, res) => {
-  const result = await pool.query(
-    `SELECT id, name, is_active, created_at
-     FROM academic_periods
-     WHERE user_id = $1
-     ORDER BY is_active DESC, created_at DESC, id DESC`,
-    [req.userId]
-  );
-  res.json(result.rows);
+  res.json(await periodSummaries(req.userId));
+}));
+
+app.get('/api/academic-summary', asyncRoute(async (req, res) => {
+  const periods = await periodSummaries(req.userId);
+  const completed = periods.filter((period) => period.is_finished && period.average !== null);
+  const historicalAverage = completed.length ? completed.reduce((sum, period) => sum + period.average, 0) / completed.length : null;
+  res.json({ historical_average: historicalAverage, completed_periods: completed.length,
+    periods: completed.map(({ id, name, average }) => ({ id, name, average })) });
 }));
 
 app.post('/api/periods', asyncRoute(async (req, res) => {
   const name = requireText(req.body.name, 'El nombre del periodo', 100);
-  const result = await pool.query(
-    `INSERT INTO academic_periods (user_id, name, is_active)
-     VALUES ($1, $2, false)
-     RETURNING id, name, is_active, created_at`,
-    [req.userId, name]
-  );
-  res.status(201).json(result.rows[0]);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('UPDATE academic_periods SET is_active = false WHERE user_id = $1 AND is_active = true', [req.userId]);
+    const result = await client.query(
+      `INSERT INTO academic_periods (user_id, name, is_active, is_finished)
+       VALUES ($1, $2, true, false)
+       RETURNING id, name, is_active, is_finished, created_at`, [req.userId, name]);
+    await client.query('COMMIT');
+    res.status(201).json({ ...result.rows[0], average: null });
+  } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
 }));
 
 app.put('/api/periods/:id/activate', asyncRoute(async (req, res) => {
@@ -328,7 +362,7 @@ app.put('/api/periods/:id/activate', asyncRoute(async (req, res) => {
     const result = await client.query(
       `UPDATE academic_periods SET is_active = true
        WHERE id = $1 AND user_id = $2
-       RETURNING id, name, is_active, created_at`,
+       RETURNING id, name, is_active, is_finished, created_at`,
       [periodId, req.userId]
     );
     await client.query('COMMIT');
@@ -339,6 +373,18 @@ app.put('/api/periods/:id/activate', asyncRoute(async (req, res) => {
   } finally {
     client.release();
   }
+}));
+
+app.put('/api/periods/:id/finish', asyncRoute(async (req, res) => {
+  const periodId = requireId(req.params.id, 'El periodo');
+  const result = await pool.query(
+    `UPDATE academic_periods SET is_finished = true, is_active = false
+     WHERE id = $1 AND user_id = $2
+     RETURNING id, name, is_active, is_finished, created_at`,
+    [periodId, req.userId]
+  );
+  if (!result.rowCount) throw new HttpError(404, 'No se encontró el periodo académico.');
+  res.json(result.rows[0]);
 }));
 
 app.delete('/api/periods/:id', asyncRoute(async (req, res) => {
@@ -352,7 +398,8 @@ app.delete('/api/periods/:id', asyncRoute(async (req, res) => {
 }));
 
 app.get('/api/subjects', asyncRoute(async (req, res) => {
-  res.json(await getSubjectBundle(req.userId));
+  const periodId = req.query.period_id ? requireId(req.query.period_id, 'El periodo académico') : null;
+  res.json(await getSubjectBundle(req.userId, periodId));
 }));
 
 app.post('/api/subjects', asyncRoute(async (req, res) => {

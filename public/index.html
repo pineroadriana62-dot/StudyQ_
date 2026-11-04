@@ -71,6 +71,11 @@
           <div class="date-pill"><span class="date-icon">▦</span><span id="full-date"></span></div>
         </section>
 
+        <section class="period-section" aria-label="Periodos académicos">
+          <div class="period-heading"><div><div class="eyebrow">PERIODOS ACADÉMICOS</div><div id="period-tabs" class="period-tabs"></div></div><div class="period-actions"><button id="finish-period" class="button button-light" type="button">Finalizar periodo</button><button id="new-period" class="button button-primary" type="button"><span>＋</span> Nuevo periodo</button></div></div>
+          <article class="historical-gpa"><div><span class="historical-icon">↗</span><div><strong>Promedio Acumulado Histórico</strong><small id="historical-periods">0 periodos finalizados</small></div></div><div class="historical-score"><span id="historical-gpa">—</span><small>/ 20</small></div></article>
+        </section>
+
         <section class="stats-grid" aria-label="Resumen académico">
           <article class="stat-card"><div class="stat-top"><span>Materias activas</span><span class="stat-icon violet">▤</span></div><div class="stat-number" id="stat-subjects">0</div><div class="stat-caption"><span class="stat-dot violet-dot"></span> Este período</div></article>
           <article class="stat-card"><div class="stat-top"><span>Por completar</span><span class="stat-icon amber">◷</span></div><div class="stat-number" id="stat-pending">0</div><div class="stat-caption"><span class="stat-dot amber-dot"></span> Evaluaciones pendientes</div></article>
@@ -123,6 +128,9 @@
 
   <div id="welcome-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
     <div class="modal-card welcome-modal"><div class="welcome-modal-art"><span>✳</span><i></i><b></b></div><button class="icon-button welcome-close" type="button" aria-label="Cerrar">×</button><div class="eyebrow">UN NUEVO DÍA, NUEVAS POSIBILIDADES</div><h2 id="welcome-title">¡Qué bueno verte!</h2><p class="welcome-subtitle">Aquí tienes lo más importante para hoy y los próximos días.</p><div id="welcome-content"></div><button id="welcome-done" class="button button-primary welcome-done" type="button">¡A por ello! <span>→</span></button></div>
+  </div>
+  <div id="period-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="period-modal-title">
+    <div class="modal-card"><div class="modal-heading"><div><div class="eyebrow">NUEVO CICLO</div><h2 id="period-modal-title">Crear periodo académico</h2></div><button class="icon-button close-modal" type="button" aria-label="Cerrar">×</button></div><form id="period-form"><label class="field-label" for="period-name">Nombre del periodo</label><input id="period-name" class="text-input" name="name" maxlength="100" placeholder="Ej. Trimestre 2" required><div class="modal-actions"><button class="button button-light close-modal" type="button">Cancelar</button><button class="button button-primary" type="submit">Crear periodo</button></div></form></div>
   </div>
   <div id="auth-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="auth-title">
     <div class="modal-card auth-modal"><div class="auth-mark">S</div><div class="eyebrow">TU ESPACIO, SOLO PARA TI</div><h2 id="auth-title">Bienvenido de vuelta</h2><p id="auth-description">Ingresa tus datos para continuar.</p><form id="auth-form"><label class="field-label" for="auth-email">Correo electrónico</label><input id="auth-email" class="text-input" name="email" type="email" maxlength="254" autocomplete="email" required><label class="field-label" for="auth-password">Contraseña</label><input id="auth-password" class="text-input" name="password" type="password" minlength="8" maxlength="128" autocomplete="current-password" required><button id="auth-submit" class="button button-primary" type="submit">Entrar <span>→</span></button></form><button id="auth-mode-toggle" class="text-link auth-toggle" type="button">¿Eres nuevo? Crear una cuenta</button></div>
