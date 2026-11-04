@@ -389,12 +389,30 @@ app.put('/api/periods/:id/finish', asyncRoute(async (req, res) => {
 
 app.delete('/api/periods/:id', asyncRoute(async (req, res) => {
   const periodId = requireId(req.params.id, 'El periodo');
-  const result = await pool.query(
-    'DELETE FROM academic_periods WHERE id = $1 AND user_id = $2',
-    [periodId, req.userId]
-  );
-  if (!result.rowCount) throw new HttpError(404, 'No se encontró el periodo académico.');
-  res.status(204).end();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const period = await client.query(
+      'SELECT id FROM academic_periods WHERE id = $1 AND user_id = $2 FOR UPDATE',
+      [periodId, req.userId]
+    );
+    if (!period.rowCount) throw new HttpError(404, 'No se encontró el periodo académico.');
+    await client.query(
+      'DELETE FROM subjects WHERE period_id = $1 AND user_id = $2',
+      [periodId, req.userId]
+    );
+    await client.query(
+      'DELETE FROM academic_periods WHERE id = $1 AND user_id = $2',
+      [periodId, req.userId]
+    );
+    await client.query('COMMIT');
+    res.status(204).end();
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }));
 
 app.get('/api/subjects', asyncRoute(async (req, res) => {

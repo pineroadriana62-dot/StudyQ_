@@ -578,6 +578,20 @@ $('#finish-period').addEventListener('click', async () => {
     toast('Periodo finalizado. Se integró al GPA histórico.');
   } catch (error) { toast(error.message, true); }
 });
+$('#delete-period').addEventListener('click', async () => {
+  if (!state.activePeriodId) {
+    toast('No hay un periodo seleccionado.', true);
+    return;
+  }
+  const period = state.periods.find((item) => String(item.id) === state.activePeriodId);
+  if (!period) return;
+  if (!window.confirm(`¿Eliminar "${period.name}"? Se eliminarán también sus materias, horarios y evaluaciones.`)) return;
+  try {
+    await api(`/api/periods/${state.activePeriodId}`, { method: 'DELETE' });
+    await refresh();
+    toast('Periodo eliminado.');
+  } catch (error) { toast(error.message, true); }
+});
 $('#period-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.currentTarget));
