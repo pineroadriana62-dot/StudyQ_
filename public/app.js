@@ -814,6 +814,29 @@ $('#see-all-tasks').addEventListener('click', (event) => {
   state.showAllTasks = !state.showAllTasks;
   renderTasks();
 });
+const sidebar = $('.sidebar');
+const menuToggle = $('#menu-toggle');
+const sidebarOverlay = $('#sidebar-overlay');
+function closeSidebar() {
+  sidebar?.classList.remove('mobile-open');
+  sidebarOverlay?.classList.add('hidden');
+  menuToggle?.setAttribute('aria-expanded', 'false');
+}
+function toggleSidebar() {
+  const open = sidebar.classList.toggle('mobile-open');
+  sidebarOverlay.classList.toggle('hidden', !open);
+  menuToggle.setAttribute('aria-expanded', String(open));
+}
+menuToggle?.addEventListener('click', toggleSidebar);
+sidebarOverlay?.addEventListener('click', closeSidebar);
+$$('.nav-link').forEach((link) => link.addEventListener('click', closeSidebar));
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeSidebar();
+});
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 850) closeSidebar();
+});
+
 $('#welcome-done').addEventListener('click', closeModals);
 $('#open-welcome').addEventListener('click', () => {
   renderWelcome();
