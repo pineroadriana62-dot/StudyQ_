@@ -11,6 +11,8 @@ const state = {
   taskStatus: 'all',
   subjectFilter: 'all',
   showAllTasks: false,
+  goalTargets: {},
+  goalScenarios: {},
   editingSubjectId: null,
   detailSubjectId: null,
   periods: [],
@@ -68,6 +70,39 @@ function getAllEvaluations() {
     subject_name: subject.name,
     subject_color: subject.color
   })));
+}
+
+function calculateRequiredGrade(evaluations = [], notaObjetivo = 16, escalaMaxima = 20) {
+  const target = Number(notaObjetivo);
+  const max = Number(escalaMaxima);
+  if (!Number.isFinite(target) || target < 0) return { valid: false, message: 'Ingresa una nota objetivo válida.' };
+  if (!Number.isFinite(max) || max <= 0) return { valid: false, message: 'La escala máxima debe ser mayor que cero.' };
+
+  const graded = evaluations.filter((evaluation) => evaluation.grade !== null && evaluation.grade !== '');
+  const puntosActuales = graded.reduce((sum, evaluation) =>
+    sum + Number(evaluation.grade) * Number(evaluation.percentage) / 100, 0);
+  const remaining = evaluations.filter((evaluation) => evaluation.grade === null || evaluation.grade === '');
+  const pesoRestante = remaining.reduce((sum, evaluation) => sum + Number(evaluation.percentage) / 100, 0);
+
+  if (pesoRestante <= 0) return { valid: true, finalizada: true, puntosActuales, pesoRestante, message: 'La materia ya está finalizada.' };
+  const puntosFaltantes = target - puntosActuales;
+  const notaNecesaria = puntosFaltantes / pesoRestante;
+
+  let status = 'reachable';
+  let label = 'Alcanzable';
+  if (notaNecesaria <= 0) {
+    status = 'reached';
+    label = 'Meta alcanzada';
+  } else if (notaNecesaria > max) {
+    status = 'impossible';
+    label = 'Imposible con la escala actual';
+  } else if (notaNecesaria >= max * 0.85) {
+    status = 'demanding';
+    label = 'Exigente';
+  }
+
+  return { valid: true, finalizada: false, puntosActuales, puntosFaltantes, pesoRestante,
+    notaNecesaria, escalaMaxima: max, status, label };
 }
 
 function gradeSummary(subject) {
@@ -388,9 +423,75 @@ function openDetails(subjectId) {
 function renderDetailBody(subject) {
   const schedules = subject.schedules.map((item) => `<div class="detail-item"><span class="schedule-event ${item.type}" style="width:6px;min-height:25px;padding:0"></span><div class="detail-item-main"><strong>${escapeHtml(typeNames[item.type])} · ${escapeHtml(dayNames[Number(item.day_of_week)])}</strong><small>${escapeHtml(item.start_time)}–${escapeHtml(item.end_time)}${item.location ? ` · ${escapeHtml(item.location)}` : ''}</small></div><button type="button" data-action="delete-schedule" data-id="${item.id}" aria-label="Eliminar bloque">×</button></div>`).join('');
   const evaluations = subject.evaluations.map((item) => `<div class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.title)}</strong><small>${Number(item.percentage)}% · ${item.due_date ? formatDueDate(item.due_date) : 'Sin fecha'} · ${item.grade === null ? 'Pendiente de calificación' : item.status === 'completed' ? 'Completada' : 'Calificada'}</small></div><span class="detail-grade">${item.grade === null ? '—' : `${Number(item.grade)}/20`}</span>${item.grade === null ? `<button class="button button-light grade-action" type="button" data-action="record-grade" data-id="${item.id}">Registrar nota</button>` : ''}<button type="button" data-action="edit-task" data-id="${item.id}" aria-label="Editar evaluación">✎</button><button type="button" data-action="delete-task" data-id="${item.id}" aria-label="Eliminar evaluación">×</button></div>`).join('');
-  $('#detail-body').innerHTML = `<section class="detail-section"><div class="detail-section-title"><h3>Clases, prácticas y estudio</h3><button type="button" data-action="add-schedule" data-id="${subject.id}">＋ Añadir bloque</button></div><div class="detail-list">${schedules || '<div class="detail-empty">Aún no hay bloques de horario.</div>'}</div></section>
+  const currentTarget = state.goalTargets[subject.id] ?? 16;
+  const pending = subject.evaluations.filter((item) => item.grade === null || item.grade === '');
+  const scenarioRows = pending.map((item) => {
+    const saved = state.goalScenarios?.[item.id];
+    return `<label class="scenario-row"><span><strong>${escapeHtml(item.title)}</strong><small>${Number(item.percentage)}%</small></span><input class="text-input scenario-grade" data-evaluation-id="${item.id}" type="number" min="0" max="20" step="0.01" value="${saved ?? ''}" placeholder="Nota estimada"></label>`;
+  }).join('');
+  $('#detail-body').innerHTML = `<section class="detail-section goal-section"><div class="detail-section-title"><h3>¿Qué nota necesito?</h3><span class="goal-scale">Escala 0–20</span></div><div class="goal-controls"><label><span>Nota final deseada</span><input id="goal-target" class="text-input" type="number" min="0" max="20" step="0.01" value="${currentTarget}"></label><input id="goal-slider" class="goal-slider" type="range" min="0" max="20" step="0.01" value="${currentTarget}" aria-label="Nota objetivo"></div><div id="goal-result" class="goal-result"></div><details class="scenario-panel"><summary>Proyectar notas individuales</summary><div class="scenario-list">${scenarioRows || '<div class="detail-empty">No hay evaluaciones pendientes.</div>'}</div><div id="scenario-result"></div></details></section>
+    <section class="detail-section"><div class="detail-section-title"><h3>Clases, prácticas y estudio</h3><button type="button" data-action="add-schedule" data-id="${subject.id}">＋ Añadir bloque</button></div><div class="detail-list">${schedules || '<div class="detail-empty">Aún no hay bloques de horario.</div>'}</div></section>
     <section class="detail-section"><div class="detail-section-title"><h3>Evaluaciones y ponderación</h3><button type="button" data-action="add-task" data-id="${subject.id}">＋ Añadir evaluación</button></div><div class="detail-list">${evaluations || '<div class="detail-empty">Aún no hay evaluaciones. Agrega una para calcular tu proyección.</div>'}</div></section>
     <div class="modal-actions"><button class="button button-light" type="button" data-action="edit-subject" data-id="${subject.id}">Editar materia</button><button class="button button-light" type="button" data-action="delete-subject" data-id="${subject.id}">Eliminar materia</button></div>`;
+  renderGoalResult(subject);
+  const targetInput = $('#goal-target');
+  const slider = $('#goal-slider');
+  targetInput.addEventListener('input', () => {
+    state.goalTargets[subject.id] = targetInput.value;
+    slider.value = Math.min(20, Math.max(0, Number(targetInput.value) || 0));
+    renderGoalResult(subject);
+  });
+  slider.addEventListener('input', () => {
+    targetInput.value = slider.value;
+    state.goalTargets[subject.id] = slider.value;
+    renderGoalResult(subject);
+  });
+  $$('.scenario-grade', $('#detail-body')).forEach((input) => input.addEventListener('input', () => {
+    state.goalScenarios[input.dataset.evaluationId] = input.value;
+    renderScenarioResult(subject);
+  }));
+  renderScenarioResult(subject);
+}
+
+function renderGoalResult(subject) {
+  const targetInput = $('#goal-target');
+  if (!targetInput) return;
+  const result = calculateRequiredGrade(subject.evaluations, targetInput.value, 20);
+  const container = $('#goal-result');
+  if (!result.valid) {
+    container.innerHTML = `<div class="goal-card goal-reached"><div><small>Nota Necesaria Promedio</small><strong>—</strong></div><span>${escapeHtml(result.message)}</span></div>`;
+    return;
+  }
+  if (result.finalizada) {
+    container.innerHTML = `<div class="goal-card goal-reached"><div><small>Nota Necesaria Promedio</small><strong>—</strong></div><span class="goal-badge reached">Materia finalizada</span></div>`;
+    return;
+  }
+  const required = result.notaNecesaria <= 0 ? 0 : result.notaNecesaria;
+  container.innerHTML = `<div class="goal-card goal-${result.status}"><div><small>Nota Necesaria Promedio</small><strong>${required.toFixed(2)} <em>/ 20</em></strong></div><span class="goal-badge ${result.status}">${escapeHtml(result.label)}</span></div>`;
+}
+
+function renderScenarioResult(subject) {
+  const container = $('#scenario-result');
+  if (!container) return;
+  const target = Number($('#goal-target')?.value || 0);
+  let currentPoints = 0;
+  subject.evaluations.forEach((evaluation) => {
+    if (evaluation.grade !== null && evaluation.grade !== '') currentPoints += Number(evaluation.grade) * Number(evaluation.percentage) / 100;
+  });
+  let estimatedPoints = 0;
+  let missingEstimate = false;
+  subject.evaluations.forEach((evaluation) => {
+    if (evaluation.grade !== null && evaluation.grade !== '') return;
+    const estimate = Number(state.goalScenarios[evaluation.id]);
+    if (!state.goalScenarios[evaluation.id] || !Number.isFinite(estimate)) missingEstimate = true;
+    else estimatedPoints += estimate * Number(evaluation.percentage) / 100;
+  });
+  if (missingEstimate) {
+    container.innerHTML = '<p class="scenario-message">Ingresa una nota estimada para cada evaluación pendiente.</p>';
+    return;
+  }
+  const projected = currentPoints + estimatedPoints;
+  container.innerHTML = `<p class="scenario-message ${projected >= target ? 'scenario-success' : 'scenario-warning'}">Proyección final estimada: <strong>${projected.toFixed(2)} / 20</strong></p>`;
 }
 
 function addScheduleForm(subjectId) {

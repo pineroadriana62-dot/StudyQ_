@@ -10,6 +10,7 @@ Aplicación web de gestión universitaria con Express, PostgreSQL y una interfaz
 - Calcular el promedio acumulado de los periodos finalizados.
 - Programar clases, prácticas y bloques de estudio por día, hora y aula/profesor.
 - Registrar evaluaciones pendientes y añadir la nota (1 a 20) cuando esté disponible.
+- Simular metas de notas con la media necesaria en evaluaciones restantes y escenarios individuales estimados.
 - Validar en el servidor que las ponderaciones de cada materia no excedan el 100%, incluso ante solicitudes concurrentes.
 - Calcular nota acumulada y proyección sobre 20. Se muestra una alerta en la materia cuando la nota acumulada o la proyección quedan por debajo de 18.
 - Ver recordatorios de la agenda del día y evaluaciones pendientes de los próximos siete días; cada tarea presenta su cuenta regresiva.
