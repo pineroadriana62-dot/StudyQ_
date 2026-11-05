@@ -642,6 +642,7 @@ $('#open-welcome').addEventListener('click', () => {
 $('#profile-button').addEventListener('click', () => {
   if (!state.user) return;
   $('#profile-name-input').value = state.user.name || '';
+  $('#profile-reminders-input').checked = state.user.email_reminders_enabled !== false;
   $('#profile-modal').classList.remove('hidden');
   $('#profile-name-input').focus();
 });

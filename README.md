@@ -60,6 +60,12 @@ Aplicación web de gestión universitaria con Express, PostgreSQL y una interfaz
 
 El servidor ejecuta `src/schema.sql` al arrancar. Las tablas se crean de forma idempotente con `IF NOT EXISTS`; también puedes copiar el contenido del archivo y ejecutarlo manualmente en el SQL Editor de Supabase.
 
+## Recordatorios por correo
+
+Configura estas variables de entorno para activar los recordatorios SMTP: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` y `MAIL_FROM`. Sin credenciales SMTP, la aplicación continúa funcionando y registra que el correo no pudo enviarse sin marcarlo como enviado.
+
+El servidor revisa diariamente las evaluaciones pendientes con fecha exacta dentro de tres días y los bloques de clase, práctica o estudio que ocurren dentro de tres días. Cada envío se guarda en `reminder_logs` mediante una clave única, por lo que no se envía repetidamente la misma alerta. Cada usuario puede activar o desactivar esta opción desde su perfil.
+
 ## Crear la base de datos en Supabase
 
 1. Regístrate en [Supabase](https://supabase.com/) y crea un proyecto en una región cercana. Guarda la contraseña de la base en un gestor seguro.

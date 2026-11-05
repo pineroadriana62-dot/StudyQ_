@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const path = require('node:path');
 const { promisify } = require('node:util');
 const { Pool } = require('pg');
+const { sendReminder } = require('./src/mail');
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
@@ -240,8 +241,9 @@ app.get('/health', asyncRoute(async (_req, res) => {
 app.get('/api/auth/session', asyncRoute(async (req, res) => {
   const userId = authenticatedUserId(req);
   if (!userId) return res.json({ authenticated: false });
-  const result = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [userId]);
+  const result = await pool.query('SELECT id, email, name, email_reminders_enabled FROM users WHERE id = $1', [userId]);
   if (!result.rowCount) return res.json({ authenticated: false });
+  void processRemindersForUser(userId).catch((error) => console.error('No se pudieron procesar recordatorios:', error));
   res.json({ authenticated: true, user: result.rows[0] });
 }));
 
@@ -256,7 +258,7 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
     await client.query('SELECT pg_advisory_xact_lock(73194521)');
     const existingUsers = await client.query('SELECT EXISTS (SELECT 1 FROM users) AS present');
     const created = await client.query(
-      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name',
+      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name, email_reminders_enabled',
       [email, passwordHash, name]
     );
     if (!existingUsers.rows[0].present) {
@@ -280,12 +282,13 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const email = requireEmail(req.body.email);
   const password = requirePassword(req.body.password);
-  const result = await pool.query('SELECT id, email, name, password_hash FROM users WHERE email = $1', [email]);
+  const result = await pool.query('SELECT id, email, name, email_reminders_enabled, password_hash FROM users WHERE email = $1', [email]);
   if (!result.rowCount || !await verifyPassword(password, result.rows[0].password_hash)) {
     throw new HttpError(401, 'El correo o la contraseña no son correctos.');
   }
   setSessionCookie(res, result.rows[0].id);
-  res.json({ authenticated: true, user: { id: result.rows[0].id, email: result.rows[0].email, name: result.rows[0].name || '' } });
+  void processRemindersForUser(result.rows[0].id).catch((error) => console.error('No se pudieron procesar recordatorios:', error));
+  res.json({ authenticated: true, user: { id: result.rows[0].id, email: result.rows[0].email, name: result.rows[0].name || '', email_reminders_enabled: result.rows[0].email_reminders_enabled } });
 }));
 
 app.post('/api/auth/logout', (_req, res) => {
@@ -331,12 +334,45 @@ async function periodSummaries(userId) {
 
 app.patch('/api/profile', asyncRoute(async (req, res) => {
   const name = requireName(req.body.name, true);
+  const emailRemindersEnabled = req.body.email_reminders_enabled === true || req.body.email_reminders_enabled === 'true' || req.body.email_reminders_enabled === 'on';
   const result = await pool.query(
-    'UPDATE users SET name = $1 WHERE id = $2 RETURNING id, email, name',
-    [name, req.userId]
+    'UPDATE users SET name = $1, email_reminders_enabled = $2 WHERE id = $3 RETURNING id, email, name, email_reminders_enabled',
+    [name, emailRemindersEnabled, req.userId]
   );
   if (!result.rowCount) throw new HttpError(404, 'No se encontró el usuario.');
   res.json({ user: result.rows[0] });
+}));
+
+async function processRemindersForUser(userId) {
+  const userResult = await pool.query('SELECT id, email, name, email_reminders_enabled FROM users WHERE id = $1', [userId]);
+  const user = userResult.rows[0];
+  if (!user || !user.email_reminders_enabled) return { sent: 0, skipped: true };
+  const evaluations = await pool.query(`SELECT e.id, e.title, s.name AS subject_name FROM evaluations e JOIN subjects s ON s.id = e.subject_id WHERE e.user_id = $1 AND e.status = 'pending' AND e.due_date = (CURRENT_DATE + INTERVAL '3 days')::date`, [userId]);
+  const schedules = await pool.query(`SELECT sc.id, sc.type, s.name AS subject_name FROM schedules sc JOIN subjects s ON s.id = sc.subject_id WHERE sc.user_id = $1 AND sc.day_of_week = EXTRACT(DOW FROM CURRENT_DATE + INTERVAL '3 days')::int`, [userId]);
+  const candidates = evaluations.rows.map((event) => ({ event_type: 'evaluation', event_id: event.id, subjectName: event.subject_name, eventTitle: event.title }))
+    .concat(schedules.rows.map((event) => ({ event_type: 'schedule', event_id: event.id, subjectName: event.subject_name, eventTitle: event.type === 'class' ? 'Clase' : event.type === 'practice' ? 'Práctica' : 'Sesión de estudio' })));
+  let sent = 0;
+  for (const candidate of candidates) {
+    const inserted = await pool.query(`INSERT INTO reminder_logs (user_id, event_type, event_id, reminder_date) VALUES ($1, $2, $3, (CURRENT_DATE + INTERVAL '3 days')::date) ON CONFLICT (user_id, event_type, event_id, reminder_date) DO NOTHING RETURNING id`, [userId, candidate.event_type, candidate.event_id]);
+    if (!inserted.rowCount) continue;
+    try {
+      const result = await sendReminder({ to: user.email, name: user.name, subjectName: candidate.subjectName, eventType: candidate.event_type, eventTitle: candidate.eventTitle });
+      if (result.sent) { await pool.query('UPDATE reminder_logs SET sent_at = NOW() WHERE id = $1', [inserted.rows[0].id]); sent++; }
+      else await pool.query('UPDATE reminder_logs SET error_message = $1 WHERE id = $2', [result.reason, inserted.rows[0].id]);
+    } catch (error) { await pool.query('UPDATE reminder_logs SET error_message = $1 WHERE id = $2', [error.message || 'Error al enviar correo', inserted.rows[0].id]); }
+  }
+  return { sent, skipped: false };
+}
+
+async function processAllReminders() {
+  const users = await pool.query('SELECT id FROM users WHERE email_reminders_enabled = TRUE');
+  let sent = 0;
+  for (const user of users.rows) sent += (await processRemindersForUser(user.id)).sent;
+  return sent;
+}
+
+app.post('/api/notifications/process', asyncRoute(async (req, res) => {
+  res.json(await processRemindersForUser(req.userId));
 }));
 
 app.get('/api/periods', asyncRoute(async (req, res) => {
@@ -637,6 +673,9 @@ async function start() {
   const schema = await fs.readFile(path.join(__dirname, 'src', 'schema.sql'), 'utf8');
   await pool.query(schema);
   app.listen(port, () => console.log(`StudyQ disponible en el puerto ${port}`));
+  setTimeout(() => processAllReminders().catch((error) => console.error('Error en recordatorios diarios:', error)), 60_000);
+  const reminderTimer = setInterval(() => processAllReminders().catch((error) => console.error('Error en recordatorios diarios:', error)), 24 * 60 * 60 * 1000);
+  reminderTimer.unref();
 }
 
 start().catch((error) => {
