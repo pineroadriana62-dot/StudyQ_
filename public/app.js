@@ -24,6 +24,7 @@ const state = {
 const subjectModal = $('#subject-modal');
 const detailModal = $('#detail-modal');
 const welcomeModal = $('#welcome-modal');
+const reportModal = $('#report-modal');
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => ({
@@ -71,6 +72,48 @@ function getAllEvaluations() {
     subject_name: subject.name,
     subject_color: subject.color
   })));
+}
+
+function calculatePeriodReport(subjects) {
+  const subjectResults = subjects.map((subject) => {
+    const evaluations = subject.evaluations || [];
+    const graded = evaluations.filter((evaluation) => evaluation.grade !== null && evaluation.grade !== '');
+    const pending = evaluations.length === 0 || evaluations.some((evaluation) => evaluation.grade === null || evaluation.grade === '');
+    const earned = graded.reduce((sum, evaluation) =>
+      sum + Number(evaluation.grade) * Number(evaluation.percentage) / 100, 0);
+    const finalNote = evaluations.length ? earned : null;
+    const status = pending ? 'En curso' : finalNote >= 10 ? 'Aprobada' : 'Reprobada';
+    return { id: subject.id, name: subject.name, color: subject.color, finalNote, status };
+  });
+  const resolved = subjectResults.filter((subject) => subject.status !== 'En curso' && subject.finalNote !== null);
+  const withGrades = subjectResults.filter((subject) => subject.finalNote !== null);
+  const average = withGrades.length
+    ? withGrades.reduce((sum, subject) => sum + subject.finalNote, 0) / withGrades.length
+    : null;
+  const ranked = [...resolved].sort((a, b) => b.finalNote - a.finalNote);
+  return {
+    subjects: subjectResults,
+    average,
+    approved: resolved.filter((subject) => subject.status === 'Aprobada').length,
+    failed: resolved.filter((subject) => subject.status === 'Reprobada').length,
+    inCourse: subjectResults.filter((subject) => subject.status === 'En curso').length,
+    best: ranked[0] || null,
+    lowest: ranked.length ? ranked[ranked.length - 1] : null
+  };
+}
+
+function renderPeriodReport() {
+  const period = state.periods.find((item) => String(item.id) === String(state.activePeriodId));
+  const report = calculatePeriodReport(state.subjects);
+  const periodName = period?.name || 'Periodo académico';
+  $('#report-title').textContent = periodName;
+  const rows = report.subjects.length ? report.subjects.map((subject) => {
+    const note = subject.finalNote === null ? '—' : subject.finalNote.toFixed(2);
+    const statusClass = subject.status === 'Aprobada' ? 'approved' : subject.status === 'Reprobada' ? 'failed' : 'course';
+    const bar = subject.finalNote === null ? 0 : Math.max(0, Math.min(100, subject.finalNote / 20 * 100));
+    return `<article class="report-row"><div class="report-subject"><span style="background:${escapeHtml(subject.color)}"></span><div><strong>${escapeHtml(subject.name)}</strong><small>Nota acumulada sobre 20</small></div></div><div class="report-bar"><i style="width:${bar}%"></i></div><strong class="report-note">${note}<small>/20</small></strong><span class="report-status ${statusClass}">${subject.status}</span></article>`;
+  }).join('') : '<div class="report-empty">Aún no hay materias en este periodo.</div>';
+  $('#report-body').innerHTML = `<section class="report-sheet"><header class="report-header"><div><span>BOLETA DIGITAL</span><h3>${escapeHtml(periodName)}</h3></div><div class="report-average"><small>Promedio general</small><strong>${report.average === null ? '—' : report.average.toFixed(2)}<span>/20</span></strong></div></header><div class="report-stats"><article><small>Materias aprobadas</small><strong>${report.approved}</strong></article><article><small>Materias reprobadas</small><strong>${report.failed}</strong></article><article><small>En curso</small><strong>${report.inCourse}</strong></article><article><small>Mejor rendimiento</small><strong>${report.best ? escapeHtml(report.best.name) : '—'}</strong>${report.best ? `<span>${report.best.finalNote.toFixed(2)} / 20</span>` : ''}</article><article><small>Área de oportunidad</small><strong>${report.lowest ? escapeHtml(report.lowest.name) : '—'}</strong>${report.lowest ? `<span>${report.lowest.finalNote.toFixed(2)} / 20</span>` : ''}</article></div><div class="report-table"><div class="report-table-head"><span>Materia</span><span>Progreso</span><span>Nota</span><span>Estatus</span></div>${rows}</div></section>`;
 }
 
 function calculateRequiredGrade(evaluations = [], notaObjetivo = 16, escalaMaxima = 20) {
@@ -433,7 +476,7 @@ function openSubjectForm(subject = null) {
 }
 
 function closeModals() {
-  [subjectModal, detailModal, welcomeModal, $('#period-modal'), $('#profile-modal')].forEach((modal) => modal?.classList.add('hidden'));
+  [subjectModal, detailModal, welcomeModal, reportModal, $('#period-modal'), $('#profile-modal')].forEach((modal) => modal?.classList.add('hidden'));
 }
 
 function openDetails(subjectId) {
@@ -652,7 +695,7 @@ document.addEventListener('click', (event) => {
   const actionElement = event.target.closest('[data-action]');
   if (actionElement) handleAction(actionElement.dataset.action, actionElement.dataset.id, actionElement);
   if (event.target.classList.contains('close-modal')) closeModals();
-  if ([subjectModal, detailModal, welcomeModal, $('#period-modal'), $('#profile-modal')].includes(event.target)) closeModals();
+  if ([subjectModal, detailModal, welcomeModal, reportModal, $('#period-modal'), $('#profile-modal')].includes(event.target)) closeModals();
 });
 
 $('#subject-form').addEventListener('submit', async (event) => {
@@ -714,6 +757,11 @@ $('#period-tabs').addEventListener('click', async (event) => {
   } catch (error) { toast(error.message, true); }
 });
 $('#new-period').addEventListener('click', () => $('#period-modal').classList.remove('hidden'));
+$('#open-report').addEventListener('click', () => {
+  renderPeriodReport();
+  reportModal.classList.remove('hidden');
+});
+$('#print-report').addEventListener('click', () => window.print());
 $('#finish-period').addEventListener('click', async () => {
   if (!state.activePeriodId) return;
   try {
