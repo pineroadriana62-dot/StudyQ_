@@ -1,12 +1,13 @@
-const CACHE_NAME = 'studyq-cache-v19';
+const CACHE_NAME = 'studyq-cache-v21';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/styles.css',
   '/app.js',
   '/manifest.json',
-  '/icon-192.svg',
-  '/icon-512.svg'
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {

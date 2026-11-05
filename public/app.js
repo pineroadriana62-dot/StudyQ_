@@ -745,8 +745,40 @@ $('#auth-mode-toggle').addEventListener('click', () => {
 });
 
 $('#add-subject').addEventListener('click', () => openSubjectForm());
-$('#add-subject-top').addEventListener('click', () => openSubjectForm());
 $('#empty-add-subject').addEventListener('click', () => openSubjectForm());
+
+const installButton = $('#install-app');
+let installPrompt = null;
+const isStandaloneApp = window.matchMedia('(display-mode: standalone)').matches
+  || window.navigator.standalone === true;
+
+if (isStandaloneApp) {
+  installButton.classList.add('hidden');
+}
+
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installPrompt = event;
+});
+
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  installButton.classList.add('hidden');
+});
+
+installButton.addEventListener('click', async () => {
+  if (installPrompt) {
+    installPrompt.prompt();
+    await installPrompt.userChoice;
+    installPrompt = null;
+    return;
+  }
+
+  const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+  toast(isIos
+    ? 'En Safari: pulsa Compartir y luego “Añadir a pantalla de inicio”.'
+    : 'Abre el menú del navegador y selecciona “Instalar aplicación” o “Añadir a pantalla de inicio”.');
+});
 $('#period-tabs').addEventListener('click', async (event) => {
   const button = event.target.closest('[data-period-id]');
   if (!button) return;
