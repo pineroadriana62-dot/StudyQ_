@@ -252,7 +252,8 @@ function priorityOrder(evaluations) {
 }
 
 function renderTasks() {
-  let evaluations = getAllEvaluations().filter((evaluation) => evaluation.status !== 'completed' &&
+  let evaluations = getAllEvaluations().filter((evaluation) =>
+    (state.taskStatus === 'all' || evaluation.status === state.taskStatus) &&
     (state.subjectFilter === 'all' || String(evaluation.subject_id) === state.subjectFilter));
   if (state.priorityFilter === 'exams') {
     evaluations = evaluations.filter((evaluation) => /examen|exam|parcial|final|prueba|quiz/i.test(evaluation.title));
@@ -268,7 +269,7 @@ function renderTasks() {
   $('#task-list').innerHTML = visible.length ? visible.map(({ evaluation, priority }) => {
     const countdown = countdownLabel(evaluation.due_date);
     return `<div class="task-row priority-${priority.level}">
-      <button class="task-check" type="button" data-action="toggle-task" data-id="${evaluation.id}" aria-label="Marcar como completada"></button>
+      <button class="task-check${evaluation.status === 'completed' ? ' checked' : ''}" type="button" data-action="toggle-task" data-id="${evaluation.id}" aria-label="${evaluation.status === 'completed' ? 'Marcar como pendiente' : 'Marcar como completada'}">${evaluation.status === 'completed' ? '✓' : ''}</button>
       <div class="task-info"><strong title="${escapeHtml(evaluation.title)}">${escapeHtml(evaluation.title)}</strong><small><span style="color:${escapeHtml(evaluation.subject_color)}">●</span> ${escapeHtml(evaluation.subject_name)} · Peso: ${Number(evaluation.percentage)}%</small></div>
       <span class="priority-badge ${priority.level}">${priority.label}</span>
       <div class="task-date"><strong>${formatDueDate(evaluation.due_date)}</strong><small>${countdown}</small></div>
@@ -750,6 +751,11 @@ $('#subject-filter').addEventListener('change', (event) => {
   state.subjectFilter = event.target.value;
   renderTasks();
 });
+$$('[data-status-filter]').forEach((button) => button.addEventListener('click', () => {
+  state.taskStatus = button.dataset.statusFilter;
+  $$('[data-status-filter]').forEach((item) => item.classList.toggle('active', item === button));
+  renderTasks();
+}));
 $$('[data-priority-filter]').forEach((button) => button.addEventListener('click', () => {
   state.priorityFilter = button.dataset.priorityFilter;
   $$('[data-priority-filter]').forEach((item) => item.classList.toggle('active', item === button));

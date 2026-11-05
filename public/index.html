@@ -100,9 +100,12 @@
           </section>
           <section class="panel-card tasks-panel" id="tasks">
             <div class="panel-heading"><div><div class="eyebrow">NO PIERDAS EL RITMO</div><h2>Panel de prioridades</h2></div><a href="#tasks" id="see-all-tasks" class="text-link">Ver todas <span>→</span></a></div>
-                        <div class="task-filters" role="group" aria-label="Filtros de prioridad">
-                          <button class="filter-chip active" type="button" data-priority-filter="all">Todas</button><button class="filter-chip" type="button" data-priority-filter="exams">Solo exámenes</button><button class="filter-chip" type="button" data-priority-filter="week">Esta semana</button>
+                        <div class="task-filters task-status-filters" role="group" aria-label="Filtrar por estado">
+                          <button class="filter-chip active" type="button" data-status-filter="all">Todas</button><button class="filter-chip" type="button" data-status-filter="pending">Pendientes</button><button class="filter-chip" type="button" data-status-filter="completed">Completadas</button>
             </div>
+                        <div class="task-filters" role="group" aria-label="Filtros de prioridad">
+                          <button class="filter-chip active" type="button" data-priority-filter="all">Todas las prioridades</button><button class="filter-chip" type="button" data-priority-filter="exams">Solo exámenes</button><button class="filter-chip" type="button" data-priority-filter="week">Esta semana</button>
+                        </div>
             <div id="task-list" class="task-list"></div>
           </section>
         </div>
