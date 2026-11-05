@@ -1,4 +1,4 @@
-const CACHE_NAME = 'studyq-cache-v12';
+const CACHE_NAME = 'studyq-cache-v13';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
