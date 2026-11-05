@@ -604,6 +604,16 @@ app.post('/api/subjects/:id/evaluations', asyncRoute(async (req, res) => {
 
 app.patch('/api/evaluations/:id', asyncRoute(async (req, res) => {
   const id = requireId(req.params.id, 'La evaluación');
+  if (Object.keys(req.body).length === 1 && Object.prototype.hasOwnProperty.call(req.body, 'status')) {
+    const status = requireStatus(req.body.status);
+    const result = await pool.query(
+      'UPDATE evaluations SET status = $1 WHERE id = $2 AND user_id = $3 RETURNING id, subject_id, title, percentage, grade, due_date, status',
+      [status, id, req.userId]
+    );
+    if (!result.rowCount) throw new HttpError(404, 'No se encontró la evaluación.');
+    res.json(result.rows[0]);
+    return;
+  }
   const title = requireText(req.body.title, 'El título', 160);
   const percentage = requirePercentage(req.body.percentage);
   const grade = requireGrade(req.body.grade);

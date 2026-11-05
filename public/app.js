@@ -9,6 +9,7 @@ const state = {
   user: null,
   authMode: 'login',
   taskStatus: 'all',
+  priorityFilter: 'all',
   subjectFilter: 'all',
   showAllTasks: false,
   goalTargets: {},
@@ -229,27 +230,50 @@ function renderSchedule() {
   }).join('');
 }
 
+function calculatePriority(evaluation) {
+  const weight = Math.max(0, Number(evaluation.percentage) || 0);
+  const days = daysUntil(evaluation.due_date);
+  const effectiveDays = days === null ? 30 : days;
+  const urgencyDays = Math.max(0, effectiveDays);
+  const score = (weight * 20) / (urgencyDays + 1);
+  let level = 'low';
+  let label = 'Baja';
+  if (effectiveDays <= 2 || (weight >= 20 && effectiveDays <= 5)) {
+    level = 'high'; label = 'Alta';
+  } else if ((effectiveDays >= 3 && effectiveDays <= 7) || (weight >= 10 && effectiveDays <= 14)) {
+    level = 'medium'; label = 'Media';
+  }
+  return { score: Math.round(score * 100) / 100, level, label, days: effectiveDays };
+}
+
+function priorityOrder(evaluations) {
+  return evaluations.map((evaluation) => ({ evaluation, priority: calculatePriority(evaluation) }))
+    .sort((a, b) => b.priority.score - a.priority.score || String(a.evaluation.due_date || '').localeCompare(String(b.evaluation.due_date || '')));
+}
+
 function renderTasks() {
-  let evaluations = getAllEvaluations().filter((evaluation) => {
-    const matchesStatus = state.taskStatus === 'all' || evaluation.status === state.taskStatus;
-    const matchesSubject = state.subjectFilter === 'all' || String(evaluation.subject_id) === state.subjectFilter;
-    return matchesStatus && matchesSubject;
-  });
-  evaluations.sort((a, b) => {
-    if (!a.due_date) return b.due_date ? 1 : 0;
-    if (!b.due_date) return -1;
-    return String(a.due_date).localeCompare(String(b.due_date));
-  });
-  if (!state.showAllTasks && state.taskStatus === 'all') evaluations = evaluations.filter((evaluation) => evaluation.status === 'pending').slice(0, 5);
-  $('#task-list').innerHTML = evaluations.length ? evaluations.map((evaluation) => {
-    const completed = evaluation.status === 'completed';
+  let evaluations = getAllEvaluations().filter((evaluation) => evaluation.status !== 'completed' &&
+    (state.subjectFilter === 'all' || String(evaluation.subject_id) === state.subjectFilter));
+  if (state.priorityFilter === 'exams') {
+    evaluations = evaluations.filter((evaluation) => /examen|exam|parcial|final|prueba|quiz/i.test(evaluation.title));
+  }
+  if (state.priorityFilter === 'week') {
+    evaluations = evaluations.filter((evaluation) => {
+      const days = daysUntil(evaluation.due_date);
+      return days !== null && days >= 0 && days <= 7;
+    });
+  }
+  const prioritized = priorityOrder(evaluations);
+  const visible = !state.showAllTasks ? prioritized.slice(0, 5) : prioritized;
+  $('#task-list').innerHTML = visible.length ? visible.map(({ evaluation, priority }) => {
     const countdown = countdownLabel(evaluation.due_date);
-    const urgent = !completed && daysUntil(evaluation.due_date) !== null && daysUntil(evaluation.due_date) <= 2;
-    return `<div class="task-row"><button class="task-check${completed ? ' checked' : ''}" type="button" data-action="toggle-task" data-id="${evaluation.id}" aria-label="${completed ? 'Marcar pendiente' : evaluation.grade === null ? 'Registra una nota para completar' : 'Marcar completada'}"${evaluation.grade === null ? ' disabled' : ''}>${completed ? '✓' : ''}</button>
-      <div class="task-info"><strong title="${escapeHtml(evaluation.title)}">${escapeHtml(evaluation.title)}</strong><small><span style="color:${escapeHtml(evaluation.subject_color)}">●</span> ${escapeHtml(evaluation.subject_name)} · ${Number(evaluation.percentage)}%</small></div>
-      <div class="task-date"><strong class="${urgent ? 'urgent' : ''}">${formatDueDate(evaluation.due_date)}</strong><small class="${urgent ? 'urgent' : ''}">${completed ? 'Completada' : countdown}</small></div>
-      <div class="task-actions">${evaluation.grade === null ? `<button class="task-grade" type="button" data-action="record-grade" data-id="${evaluation.id}">Registrar nota</button>` : ''}<button class="task-edit" type="button" data-action="edit-task" data-id="${evaluation.id}" aria-label="Editar evaluación">✎</button><button class="task-delete" type="button" data-action="delete-task" data-id="${evaluation.id}" aria-label="Eliminar evaluación">×</button></div></div>`;
-  }).join('') : '<div class="task-empty">No hay evaluaciones en esta vista. ¡Disfruta el respiro!</div>';
+    return `<div class="task-row priority-${priority.level}">
+      <button class="task-check" type="button" data-action="toggle-task" data-id="${evaluation.id}" aria-label="Marcar como completada"></button>
+      <div class="task-info"><strong title="${escapeHtml(evaluation.title)}">${escapeHtml(evaluation.title)}</strong><small><span style="color:${escapeHtml(evaluation.subject_color)}">●</span> ${escapeHtml(evaluation.subject_name)} · Peso: ${Number(evaluation.percentage)}%</small></div>
+      <span class="priority-badge ${priority.level}">${priority.label}</span>
+      <div class="task-date"><strong>${formatDueDate(evaluation.due_date)}</strong><small>${countdown}</small></div>
+      <div class="task-actions"><button class="task-edit" type="button" data-action="edit-task" data-id="${evaluation.id}" aria-label="Editar evaluación">✎</button><button class="task-delete" type="button" data-action="delete-task" data-id="${evaluation.id}" aria-label="Eliminar evaluación">×</button></div></div>`;
+  }).join('') : '<div class="task-empty">No hay tareas pendientes para esta prioridad. ¡Disfruta el respiro!</div>';
   $('#see-all-tasks').textContent = state.showAllTasks ? 'Ver menos ↑' : 'Ver todas →';
 }
 
@@ -612,9 +636,10 @@ async function handleAction(action, id, actionElement) {
       if (subject && evaluation) {
         await api(`/api/evaluations/${id}`, {
           method: 'PATCH',
-          body: JSON.stringify({ ...evaluation, status: evaluation.status === 'completed' ? 'pending' : 'completed' })
+          body: JSON.stringify({ status: evaluation.status === 'completed' ? 'pending' : 'completed' })
         });
         await refresh();
+        if (evaluation.status !== 'completed') toast('Tarea marcada como completada y retirada del panel.');
       }
     }
   } catch (error) {
@@ -725,9 +750,9 @@ $('#subject-filter').addEventListener('change', (event) => {
   state.subjectFilter = event.target.value;
   renderTasks();
 });
-$$('[data-status-filter]').forEach((button) => button.addEventListener('click', () => {
-  state.taskStatus = button.dataset.statusFilter;
-  $$('[data-status-filter]').forEach((item) => item.classList.toggle('active', item === button));
+$$('[data-priority-filter]').forEach((button) => button.addEventListener('click', () => {
+  state.priorityFilter = button.dataset.priorityFilter;
+  $$('[data-priority-filter]').forEach((item) => item.classList.toggle('active', item === button));
   renderTasks();
 }));
 $('#see-all-tasks').addEventListener('click', (event) => {
